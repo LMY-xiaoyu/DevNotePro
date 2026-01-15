@@ -46,6 +46,7 @@ import { getTagStyle } from '../utils';
  * - onUpdateNote: 更新笔记的回调函数
  * - onDeleteNote: 删除笔记的回调函数
  * - onSave: 保存笔记的回调函数
+ * - onPinNote: 置顶/取消置顶笔记的回调函数
  * - viewState: 视图状态，'standard'表示标准视图，'floating'表示浮动窗口
  * - setViewState: 设置视图状态的回调函数
  * - accentColor: 强调色
@@ -57,6 +58,7 @@ interface EditorProps {
   onUpdateNote: (id: string, updates: Partial<Note>) => void;
   onDeleteNote: (id: string) => void;
   onSave: () => void;
+  onTogglePin: (id: string) => void;
   viewState: 'standard' | 'floating';
   setViewState: (v: 'standard' | 'floating') => void;
   accentColor: string;
@@ -74,6 +76,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
   onUpdateNote, 
   onDeleteNote, 
   onSave, 
+  onTogglePin,
   viewState, 
   setViewState, 
   isWindowOnTop,
@@ -133,7 +136,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
    * 处理置顶/取消置顶笔记
    */
   const handleTogglePin = () => {
-    onUpdateNote(note.id, { isPinned: !note.isPinned });
+    onTogglePin(note.id);
   };
 
   /**
