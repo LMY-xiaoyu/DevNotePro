@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Search, Pin, Calendar, Trash2, PinOff, ExternalLink, FolderInput, Plus } from 'lucide-react';
 import { Note } from '../types';
 import ContextMenu, { MenuItem } from './ContextMenu';
@@ -24,7 +24,7 @@ interface NoteListProps {
   onReorderNotes: (draggedId: string, targetId: string) => void;
 }
 
-const NoteList: React.FC<NoteListProps> = ({ 
+const NoteList: React.FC<NoteListProps> = React.memo(({ 
   notes, 
   selectedNoteId, 
   onSelectNote, 
@@ -46,12 +46,12 @@ const NoteList: React.FC<NoteListProps> = ({
   // Custom Tag Tooltip State
   const [hoveredTags, setHoveredTags] = useState<{ tags: string[]; x: number; y: number } | null>(null);
 
-  const handleContextMenu = (e: React.MouseEvent, noteId: string) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent, noteId: string) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, noteId });
-  };
+  }, []);
 
-  const getContextMenuItems = (noteId: string): MenuItem[] => {
+  const getContextMenuItems = useCallback((noteId: string, notes: Note[]): MenuItem[] => {
     const note = notes.find(n => n.id === noteId);
     if (!note) return [];
     
@@ -83,32 +83,52 @@ const NoteList: React.FC<NoteListProps> = ({
         action: () => onDeleteNote(noteId)
       }
     ];
-  };
+  }, [onPinNote, onMoveNote, onAddTag, onOpenWindow, onDeleteNote]);
 
-  const filteredNotes = notes.filter(note => 
-    note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    note.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    note.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
-  ).sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+  const filteredNotes = useMemo(() => {
+    return notes.filter(note => 
+      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      note.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      note.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
+    ).sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+  }, [notes, searchQuery]);
 
-  const handleDragStart = (e: React.DragEvent, id: string) => {
+  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
     setDraggedNoteId(id);
     e.dataTransfer.setData('noteId', id);
     e.dataTransfer.effectAllowed = 'move';
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent, targetId: string) => {
+  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
     e.preventDefault();
     const draggedId = e.dataTransfer.getData('noteId');
     if (draggedId && draggedId !== targetId) {
       onReorderNotes(draggedId, targetId);
     }
     setDraggedNoteId(null);
-  };
+  }, [onReorderNotes]);
+
+  const handleToggleSelect = useCallback((e: React.MouseEvent, id: string, onToggleSelect: (id: string) => void) => {
+    e.stopPropagation();
+    onToggleSelect(id);
+  }, []);
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent, tags: string[]) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredTags({
+      tags,
+      x: rect.left,
+      y: rect.bottom + 8
+    });
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    setHoveredTags(null);
+  }, []);
 
   return (
     <div className="w-80 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full bg-white dark:bg-zinc-950">
@@ -146,7 +166,7 @@ const NoteList: React.FC<NoteListProps> = ({
           filteredNotes.map((note) => {
              const isSelected = selectedListIds.has(note.id);
              const displayTitle = note.title.trim() || note.content.trim().slice(0, 30).replace(/\n/g, ' ') || '无标题笔记';
-             
+              
              return (
               <div
                 key={note.id}
@@ -163,10 +183,7 @@ const NoteList: React.FC<NoteListProps> = ({
                 {/* Checkbox aligned with Title */}
                 <div 
                    className={`absolute top-4 right-3 z-10 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     onToggleSelect(note.id);
-                   }}
+                   onClick={(e) => handleToggleSelect(e, note.id, onToggleSelect)}
                 >
                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
                       isSelected 
@@ -196,15 +213,8 @@ const NoteList: React.FC<NoteListProps> = ({
                     {note.tags.length > 0 && (
                         <div 
                             className="flex items-center gap-1 overflow-hidden max-w-[120px]" 
-                            onMouseEnter={(e) => {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              setHoveredTags({
-                                tags: note.tags,
-                                x: rect.left,
-                                y: rect.bottom + 8
-                              });
-                            }}
-                            onMouseLeave={() => setHoveredTags(null)}
+                            onMouseEnter={(e) => handleMouseEnter(e, note.tags)}
+                            onMouseLeave={handleMouseLeave}
                         >
                             {note.tags.slice(0, 3).map(tag => (
                                 <span key={tag} className={getTagStyle(tag)}>
@@ -230,7 +240,7 @@ const NoteList: React.FC<NoteListProps> = ({
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          items={getContextMenuItems(contextMenu.noteId)}
+          items={getContextMenuItems(contextMenu.noteId, notes)}
           onClose={() => setContextMenu(null)}
         />
       )}
@@ -249,6 +259,8 @@ const NoteList: React.FC<NoteListProps> = ({
       )}
     </div>
   );
-};
+});
+
+NoteList.displayName = 'NoteList';
 
 export default NoteList;
