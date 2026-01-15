@@ -86,6 +86,7 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isFloatingOnTop, setIsFloatingOnTop] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [settings, setSettings] = useState<Settings>({
     darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
@@ -180,92 +181,118 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const initData = async () => {
-      let loadedNotes: Note[] | null = null;
-      let loadedFolders: Folder[] | null = null;
-      const ipcRenderer = getIpcRenderer();
-      const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      try {
+        let loadedNotes: Note[] | null = null;
+        let loadedFolders: Folder[] | null = null;
+        const ipcRenderer = getIpcRenderer();
+        const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
 
-      if (ipcRenderer) {
-        try {
-          loadedNotes = await ipcRenderer.invoke('read-notes');
-          loadedFolders = await ipcRenderer.invoke('read-folders');
+        if (ipcRenderer) {
+          try {
+            loadedNotes = await ipcRenderer.invoke('read-notes');
+            loadedFolders = await ipcRenderer.invoke('read-folders');
 
-          ipcRenderer.on('notes-updated', (_: any, updatedNotes: Note[]) => setNotes(updatedNotes));
-          ipcRenderer.on('note-updated-single', (_: any, updatedNote: Note) => {
-            setNotes(prev => {
-              const exists = prev.find(n => n.id === updatedNote.id);
-              return exists ? prev.map(n => n.id === updatedNote.id ? updatedNote : n) : [updatedNote, ...prev];
+            ipcRenderer.on('notes-updated', (_: any, updatedNotes: Note[]) => setNotes(updatedNotes));
+            ipcRenderer.on('note-updated-single', (_: any, updatedNote: Note) => {
+              setNotes(prev => {
+                const exists = prev.find(n => n.id === updatedNote.id);
+                return exists ? prev.map(n => n.id === updatedNote.id ? updatedNote : n) : [updatedNote, ...prev];
+              });
             });
-          });
-          ipcRenderer.on('note-deleted', (_: any, deletedNoteId: string) => {
-            setNotes(prev => {
-              const filteredNotes = prev.filter(note => note.id !== deletedNoteId);
-              // 如果删除的是当前活动笔记，需要更新活动笔记ID
-              if (activeNoteId === deletedNoteId) {
-                setActiveNoteId(filteredNotes.length > 0 ? filteredNotes[0].id : null);
-              }
-              return filteredNotes;
+            ipcRenderer.on('note-deleted', (_: any, deletedNoteId: string) => {
+              setNotes(prev => {
+                const filteredNotes = prev.filter(note => note.id !== deletedNoteId);
+                // 如果删除的是当前活动笔记，需要更新活动笔记ID
+                if (activeNoteId === deletedNoteId) {
+                  setActiveNoteId(filteredNotes.length > 0 ? filteredNotes[0].id : null);
+                }
+                return filteredNotes;
+              });
+              setOpenNoteIds(prev => prev.filter(id => id !== deletedNoteId));
+              setUnsavedNoteIds(prev => {
+                const next = new Set(prev);
+                next.delete(deletedNoteId);
+                return next;
+              });
             });
-            setOpenNoteIds(prev => prev.filter(id => id !== deletedNoteId));
-            setUnsavedNoteIds(prev => {
-              const next = new Set(prev);
-              next.delete(deletedNoteId);
-              return next;
+            ipcRenderer.on('folders-updated', (_: any, updatedFolders: Folder[]) => setCustomFolders(updatedFolders));
+            ipcRenderer.on('settings-updated', (_: any, newSettings: Settings) => {
+              if (JSON.stringify(newSettings) !== JSON.stringify(settingsRef.current)) setSettings(newSettings);
             });
-          });
-          ipcRenderer.on('folders-updated', (_: any, updatedFolders: Folder[]) => setCustomFolders(updatedFolders));
-          ipcRenderer.on('settings-updated', (_: any, newSettings: Settings) => {
-            if (JSON.stringify(newSettings) !== JSON.stringify(settingsRef.current)) setSettings(newSettings);
-          });
-          ipcRenderer.on('new-note', () => { if (!isFloatingWindow) handleAddNoteRef.current(); });
-        } catch (e) { console.error(e); }
-      }
+            ipcRenderer.on('new-note', () => { if (!isFloatingWindow) handleAddNoteRef.current(); });
+          } catch (e) { console.error(e); }
+        }
 
-      if (!loadedNotes) {
-        const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (localData) loadedNotes = JSON.parse(localData);
-      }
-      if (!loadedFolders) {
-        const localFolders = localStorage.getItem(FOLDERS_STORAGE_KEY);
-        if (localFolders) loadedFolders = JSON.parse(localFolders);
-      }
-
-      // --- Cleanup logic: Remove blank notes on launch ---
-      if (loadedNotes && loadedNotes.length > 0) {
-        const initialCount = loadedNotes.length;
-        const cleanedNotes = loadedNotes.filter(n => {
-          const isBlank = n.title.trim() === '' && n.content.trim() === '' && (!n.tags || n.tags.length === 0);
-          if (isBlank) {
-            // Remove from disk if using IPC
-            if (ipcRenderer) ipcRenderer.invoke('delete-note', n.id);
-            return false;
+        if (!loadedNotes) {
+          const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (localData) {
+            try {
+              loadedNotes = JSON.parse(localData);
+            } catch (e) {
+              console.error('Error parsing local notes data:', e);
+              loadedNotes = [];
+            }
           }
-          return true;
-        });
-
-        const deletedCount = initialCount - cleanedNotes.length;
-        loadedNotes = cleanedNotes;
-        
-        if (deletedCount > 0 && !isFloatingWindow) {
-          addToast(`已自动清理 ${deletedCount} 条空白笔记`, 'info');
         }
-      }
-
-      if (loadedNotes && loadedNotes.length > 0) {
-        setNotes(loadedNotes);
-        if (!isFloatingWindow) {
-          const lastNote = loadedNotes[0];
-          setActiveNoteId(lastNote.id);
-          setOpenNoteIds([lastNote.id]);
+        if (!loadedFolders) {
+          const localFolders = localStorage.getItem(FOLDERS_STORAGE_KEY);
+          if (localFolders) {
+            try {
+              loadedFolders = JSON.parse(localFolders);
+            } catch (e) {
+              console.error('Error parsing local folders data:', e);
+              loadedFolders = [];
+            }
+          }
         }
-      } else if (!isFloatingWindow) {
-        const welcome: Note = { id: 'welcome', title: '欢迎使用 DevNote Pro', content: `# 全新高性能架构\n\n- **独立文件存储**: 每个笔记现在保存为独立的 JSON 文件。\n- **图片支持**: 直接粘贴图片到编辑器。\n- **原生独立窗口**: 拖拽标签页向下，变为独立系统窗口。`, tags: ['版本更新'], folderId: 'all', language: 'markdown', createdAt: Date.now(), updatedAt: Date.now(), isArchived: false, isPinned: true };
-        setNotes([welcome]);
-        setActiveNoteId(welcome.id);
-        setOpenNoteIds([welcome.id]);
+
+        // --- Cleanup logic: Remove blank notes on launch ---
+        if (loadedNotes && loadedNotes.length > 0) {
+          const initialCount = loadedNotes.length;
+          const cleanedNotes = loadedNotes.filter(n => {
+            const isBlank = n.title.trim() === '' && n.content.trim() === '' && (!n.tags || n.tags.length === 0);
+            if (isBlank) {
+              // Remove from disk if using IPC
+              if (ipcRenderer) ipcRenderer.invoke('delete-note', n.id);
+              return false;
+            }
+            return true;
+          });
+
+          const deletedCount = initialCount - cleanedNotes.length;
+          loadedNotes = cleanedNotes;
+          
+          if (deletedCount > 0 && !isFloatingWindow) {
+            addToast(`已自动清理 ${deletedCount} 条空白笔记`, 'info');
+          }
+        }
+
+        if (loadedNotes && loadedNotes.length > 0) {
+          setNotes(loadedNotes);
+          if (!isFloatingWindow) {
+            const lastNote = loadedNotes[0];
+            setActiveNoteId(lastNote.id);
+            setOpenNoteIds([lastNote.id]);
+          }
+        } else if (!isFloatingWindow) {
+          const welcome: Note = { id: 'welcome', title: '欢迎使用 DevNote Pro', content: `# 全新高性能架构\n\n- **独立文件存储**: 每个笔记现在保存为独立的 JSON 文件。\n- **图片支持**: 直接粘贴图片到编辑器。\n- **原生独立窗口**: 拖拽标签页向下，变为独立系统窗口。`, tags: ['版本更新'], folderId: 'all', language: 'markdown', createdAt: Date.now(), updatedAt: Date.now(), isArchived: false, isPinned: true };
+          setNotes([welcome]);
+          setActiveNoteId(welcome.id);
+          setOpenNoteIds([welcome.id]);
+        }
+        if (loadedFolders) setCustomFolders(loadedFolders);
+        if (savedSettings) {
+          try {
+            setSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
+          } catch (e) {
+            console.error('Error parsing settings:', e);
+          }
+        }
+      } catch (e) {
+        console.error('Error initializing data:', e);
+      } finally {
+        setIsLoading(false);
       }
-      if (loadedFolders) setCustomFolders(loadedFolders);
-      if (savedSettings) setSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
     };
     initData();
   }, [isFloatingWindow]);
@@ -325,9 +352,31 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     setUnsavedNoteIds(prev => { const next = new Set(prev); next.delete(id); return next; });
     if (activeNoteId === id) setActiveNoteId(nextOpen.length > 0 ? nextOpen[nextOpen.length - 1] : null);
   };
-  const handleTabDragEnd = async (e: React.DragEvent, id: string) => { if (e.clientY > 150) { const ipc = getIpcRenderer(); if (ipc) { if (unsavedNoteIds.has(id)) { await saveNotesToDisk(notes, id, true); } ipc.invoke('open-note-window', id); handleCloseTab(id, undefined, true); } } };
+  const handleTabDragEnd = async (e: React.DragEvent, id: string) => {
+    if (e.clientY > 150) {
+      const ipc = getIpcRenderer();
+      if (ipc) {
+        const note = notes.find(n => n.id === id);
+        if (note) {
+          // 直接传递笔记数据，实现无缝切换
+          ipc.invoke('open-note-window', note);
+          handleCloseTab(id, undefined, true);
+        }
+      }
+    }
+  };
   const handlePinNote = (id: string) => { const n = notes.find(n => n.id === id); if (n) { const updated = { ...n, isPinned: !n.isPinned }; handleUpdateNote(id, { isPinned: !n.isPinned }); saveNotesToDisk(notes.map(note => note.id === id ? updated : note), id, true); } };
-  const handleOpenWindow = async (id: string) => { const ipc = getIpcRenderer(); if (ipc) { if (unsavedNoteIds.has(id)) { await saveNotesToDisk(notes, id, true); } ipc.invoke('open-note-window', id); handleCloseTab(id, undefined, true); } };
+  const handleOpenWindow = async (id: string) => {
+    const ipc = getIpcRenderer();
+    if (ipc) {
+      const note = notes.find(n => n.id === id);
+      if (note) {
+        // 直接传递笔记数据，实现无缝切换
+        ipc.invoke('open-note-window', note);
+        handleCloseTab(id, undefined, true);
+      }
+    }
+  };
   const handleMoveNoteRequest = (id: string) => {};
   const handleConfirmMoveNote = (tid: string) => {};
   const handleAddTagRequest = (id: string) => {};
@@ -381,6 +430,19 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
     setIsFloatingOnTop,
     setSettings,
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen w-screen bg-white dark:bg-zinc-950">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mx-auto mb-4">
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+          <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">加载中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <NoteContext.Provider value={value}>
