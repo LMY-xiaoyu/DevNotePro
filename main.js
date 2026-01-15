@@ -109,7 +109,7 @@ function createWindow() {
   return win;
 }
 
-function createFloatingWindow(noteId) {
+function createFloatingWindow(noteId, isUnsaved = false) {
   const iconPath = getIconPath();
   const win = new BrowserWindow({
     width: 800,
@@ -127,7 +127,7 @@ function createFloatingWindow(noteId) {
     backgroundColor: BACKGROUND_COLOR
   });
 
-  win.loadFile(path.join(__dirname, 'dist', 'index.html'), { search: `?noteId=${noteId}` });
+  win.loadFile(path.join(__dirname, 'dist', 'index.html'), { search: `?noteId=${noteId}&isUnsaved=${isUnsaved}` });
 
   win.once('ready-to-show', () => {
     win.show();
@@ -256,8 +256,19 @@ ipcMain.on('broadcast-settings', (event, settings) => {
   }
 });
 
-ipcMain.handle('open-note-window', (event, noteId) => {
-  createFloatingWindow(noteId);
+ipcMain.handle('open-note-window', async (event, noteData) => {
+  const noteId = noteData.id;
+  // 确保笔记文件已经保存
+  const notePath = path.join(NOTES_DIR, `${noteId}.json`);
+  
+  // 不管笔记文件是否存在，都更新文件内容为最新的笔记数据
+  // 这样可以确保新窗口能够加载到最新的笔记内容
+  // 移除isUnsaved属性，因为它不是笔记数据的一部分
+  const { isUnsaved, ...noteWithoutUnsaved } = noteData;
+  await fsPromises.writeFile(notePath, JSON.stringify(noteWithoutUnsaved, null, 2), 'utf-8');
+  
+  // 创建浮动窗口，传递isUnsaved状态
+  createFloatingWindow(noteId, isUnsaved);
 });
 
 // --- File System IPC ---
@@ -279,6 +290,19 @@ ipcMain.handle('read-notes', async () => {
   } catch (err) {
     return [];
   }
+});
+
+ipcMain.handle('read-note', async (event, noteId) => {
+  try {
+    const notePath = path.join(NOTES_DIR, `${noteId}.json`);
+    if (fs.existsSync(notePath)) {
+      const content = await fsPromises.readFile(notePath, 'utf-8');
+      return JSON.parse(content);
+    }
+  } catch (err) {
+    console.error('Failed to read note:', err);
+  }
+  return null;
 });
 
 ipcMain.handle('save-note', async (event, note) => {

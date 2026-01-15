@@ -1,7 +1,24 @@
+/**
+ * Editor.tsx - 笔记编辑器组件
+ * 
+ * 功能：
+ * 1. 显示和编辑笔记内容
+ * 2. 支持语法高亮
+ * 3. 支持添加和删除标签
+ * 4. 支持粘贴图片
+ * 5. 支持将笔记分离为独立窗口
+ * 6. 支持置顶/取消置顶笔记
+ * 7. 显示笔记统计信息（修改时间、字符数、词数等）
+ */
+
 import React, { useState, useRef, useEffect, memo } from 'react';
+// 导入图标组件
 import { Trash2, Pin, PinOff, Tag as TagIcon, ExternalLink, Hash as HashIcon, Plus as PlusIcon, Save, X, ArrowUpToLine } from 'lucide-react';
+// 导入代码编辑器组件
 import Editor from 'react-simple-code-editor';
+// 导入语法高亮库
 import Prism from 'prismjs';
+// 导入各种语言的语法高亮支持
 import 'prismjs/components/prism-clike';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-typescript';
@@ -14,10 +31,27 @@ import 'prismjs/components/prism-c';
 import 'prismjs/components/prism-cpp';
 import 'prismjs/components/prism-markup'; 
 
+// 导入类型定义
 import { Note, Language } from '../types';
+// 导入语言列表常量
 import { LANGUAGES } from '../constants';
+// 导入工具函数
 import { getTagStyle } from '../utils';
 
+/**
+ * EditorProps - 编辑器组件的属性接口
+ * 
+ * 属性：
+ * - note: 当前编辑的笔记对象，null表示没有选中笔记
+ * - onUpdateNote: 更新笔记的回调函数
+ * - onDeleteNote: 删除笔记的回调函数
+ * - onSave: 保存笔记的回调函数
+ * - viewState: 视图状态，'standard'表示标准视图，'floating'表示浮动窗口
+ * - setViewState: 设置视图状态的回调函数
+ * - accentColor: 强调色
+ * - isWindowOnTop: 窗口是否置顶
+ * - onToggleWindowTop: 切换窗口置顶状态的回调函数
+ */
 interface EditorProps {
   note: Note | null;
   onUpdateNote: (id: string, updates: Partial<Note>) => void;
@@ -30,6 +64,11 @@ interface EditorProps {
   onToggleWindowTop: () => void;
 }
 
+/**
+ * EditorComponent - 笔记编辑器组件
+ * 
+ * 使用memo优化，避免不必要的重新渲染
+ */
 const EditorComponent: React.FC<EditorProps> = memo(({ 
   note, 
   onUpdateNote, 
@@ -40,16 +79,26 @@ const EditorComponent: React.FC<EditorProps> = memo(({
   isWindowOnTop,
   onToggleWindowTop
 }) => {
+  // 状态管理
+  // isAddingTag: 是否正在添加标签
   const [isAddingTag, setIsAddingTag] = useState(false);
+  // newTagValue: 新标签的值
   const [newTagValue, setNewTagValue] = useState('');
+  // tagInputRef: 标签输入框的引用
   const tagInputRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * useEffect钩子 - 当isAddingTag变化时，聚焦到标签输入框
+   */
   useEffect(() => {
     if (isAddingTag && tagInputRef.current) {
       tagInputRef.current.focus();
     }
   }, [isAddingTag]);
 
+  /**
+   * 无笔记时的空状态显示
+   */
   if (!note) {
     return (
       <div className="flex-1 flex items-center justify-center bg-white dark:bg-zinc-950 text-zinc-400">
@@ -64,23 +113,40 @@ const EditorComponent: React.FC<EditorProps> = memo(({
     );
   }
 
+  /**
+   * 处理内容变化
+   * @param newContent 新的笔记内容
+   */
   const handleChange = (newContent: string) => {
     onUpdateNote(note.id, { content: newContent, updatedAt: Date.now() });
   };
 
+  /**
+   * 处理标题变化
+   * @param e 输入事件对象
+   */
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onUpdateNote(note.id, { title: e.target.value, updatedAt: Date.now() });
   };
 
+  /**
+   * 处理置顶/取消置顶笔记
+   */
   const handleTogglePin = () => {
     onUpdateNote(note.id, { isPinned: !note.isPinned });
   };
 
+  /**
+   * 开始添加标签
+   */
   const handleStartAddTag = () => {
     setIsAddingTag(true);
     setNewTagValue('');
   };
 
+  /**
+   * 提交添加标签
+   */
   const handleSubmitTag = () => {
     const tag = newTagValue.trim();
     if (tag && !note.tags.includes(tag)) {
@@ -90,6 +156,10 @@ const EditorComponent: React.FC<EditorProps> = memo(({
     setNewTagValue('');
   };
 
+  /**
+   * 处理标签输入框的键盘事件
+   * @param e 键盘事件对象
+   */
   const handleKeyDownTag = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSubmitTag();
@@ -98,6 +168,10 @@ const EditorComponent: React.FC<EditorProps> = memo(({
     }
   };
 
+  /**
+   * 处理删除标签
+   * @param tagToRemove 要删除的标签
+   */
   const handleRemoveTag = (tagToRemove: string) => {
     onUpdateNote(note.id, { 
       tags: note.tags.filter(t => t !== tagToRemove),
@@ -105,6 +179,10 @@ const EditorComponent: React.FC<EditorProps> = memo(({
     });
   };
 
+  /**
+   * 处理粘贴事件 - 支持粘贴图片
+   * @param e 粘贴事件对象
+   */
   const handlePaste = async (e: React.ClipboardEvent) => {
     if (!e.clipboardData.items) return;
     const items = e.clipboardData.items;
@@ -117,19 +195,23 @@ const EditorComponent: React.FC<EditorProps> = memo(({
           const ipcRenderer = (window as any).require ? (window as any).require('electron').ipcRenderer : null;
           if (ipcRenderer) {
             try {
+              // 通过IPC调用保存图片
               const imageUrl = await ipcRenderer.invoke('save-image', {
                 name: file.name || 'image.png',
                 data: buffer
               });
               if (imageUrl) {
+                // 生成图片的Markdown语法
                 const imageMarkdown = `\n![Image](${imageUrl})\n`;
                 const activeEl = document.activeElement as HTMLTextAreaElement;
                 if (activeEl && activeEl.tagName === 'TEXTAREA') {
+                  // 插入图片到光标位置
                    const start = activeEl.selectionStart;
                    const end = activeEl.selectionEnd;
                    const newContent = note.content.substring(0, start) + imageMarkdown + note.content.substring(end);
                    handleChange(newContent);
                 } else {
+                  // 追加图片到内容末尾
                    handleChange(note.content + imageMarkdown);
                 }
               }
@@ -141,6 +223,11 @@ const EditorComponent: React.FC<EditorProps> = memo(({
     }
   };
 
+  /**
+   * 语法高亮函数
+   * @param code 要高亮的代码
+   * @returns 高亮后的代码
+   */
   const highlight = (code: string) => {
     let lang: string = note.language;
     if (lang === 'text') return code; 
@@ -151,10 +238,15 @@ const EditorComponent: React.FC<EditorProps> = memo(({
     return code;
   };
 
+  /**
+   * 渲染编辑器界面
+   */
   return (
     <div className={`flex-1 flex flex-col h-full bg-white dark:bg-zinc-950 transition-colors duration-300`}>
+      {/* 标题栏部分 */}
       <div className="px-6 py-4 border-b border-zinc-100 dark:border-zinc-900 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-4 flex-1 no-drag">
+          {/* 笔记标题输入框 */}
           <input
             name="title"
             type="text"
@@ -165,6 +257,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
           />
         </div>
         <div className="flex items-center gap-2 no-drag">
+          {/* 语言选择下拉框 */}
           <select
             value={note.language}
             onChange={(e) => onUpdateNote(note.id, { language: e.target.value as Language })}
@@ -175,8 +268,11 @@ const EditorComponent: React.FC<EditorProps> = memo(({
             ))}
           </select>
           <div className="h-6 w-[1px] bg-zinc-200 dark:bg-zinc-800 mx-2" />
+          {/* 保存按钮 */}
           <button onClick={onSave} data-tooltip="保存 (Ctrl + S)" className="p-2 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"><Save size={18} /></button>
+          {/* 置顶/取消置顶按钮 */}
           <button onClick={handleTogglePin} data-tooltip={note.isPinned ? "取消笔记置顶" : "置顶笔记"} className={`p-2 rounded-lg transition-colors ${note.isPinned ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>{note.isPinned ? <Pin size={18} fill="currentColor" /> : <PinOff size={18} />}</button>
+          {/* 窗口置顶按钮（仅在浮动窗口显示） */}
           {viewState === 'floating' && (
             <button 
               onClick={onToggleWindowTop} 
@@ -186,6 +282,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
               <ArrowUpToLine size={18} />
             </button>
           )}
+          {/* 分离/关闭窗口按钮 */}
           <button 
             onClick={() => setViewState(viewState === 'standard' ? 'floating' : 'standard')} 
             data-tooltip={viewState === 'standard' ? '分离为独立窗口' : '关闭此窗口'} 
@@ -193,6 +290,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
           >
             {viewState === 'standard' ? <ExternalLink size={18} /> : <X size={18} />}
           </button>
+          {/* 删除笔记按钮 */}
           <button 
             onClick={() => onDeleteNote(note.id)} 
             data-tooltip="删除笔记" 
@@ -203,7 +301,9 @@ const EditorComponent: React.FC<EditorProps> = memo(({
         </div>
       </div>
 
+      {/* 标签栏部分 */}
       <div className="px-6 py-2 border-b border-zinc-50 dark:border-zinc-900/50 flex items-center gap-3 overflow-x-auto no-scrollbar scroll-smooth shrink-0 no-drag">
+        {/* 添加标签输入框或按钮 */}
         {isAddingTag ? (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-900 border border-blue-500/50">
             <HashIcon size={10} className="text-zinc-400" />
@@ -226,6 +326,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
             <PlusIcon size={12} /> 添加标签
           </button>
         )}
+        {/* 已添加的标签列表 */}
         {note.tags.map(tag => (
           <span key={tag} className={`group ${getTagStyle(tag)}`}>
             {tag}
@@ -239,6 +340,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
         ))}
       </div>
 
+      {/* 编辑器主体部分 */}
       <div className="flex-1 relative overflow-auto editor-container no-drag" onPaste={handlePaste}>
         <Editor
           value={note.content}
@@ -255,6 +357,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
         />
       </div>
       
+      {/* 状态栏部分 */}
       <div className="px-6 py-2 border-t border-zinc-100 dark:border-zinc-900 flex justify-between items-center text-[10px] text-zinc-400 uppercase tracking-widest font-medium shrink-0">
         <div className="flex items-center gap-4">
           <span>修改时间：{new Date(note.updatedAt).toLocaleString('zh-CN')}</span>
@@ -269,7 +372,9 @@ const EditorComponent: React.FC<EditorProps> = memo(({
   );
 });
 
-// 使用memo优化，避免不必要的重新渲染
+/**
+ * 使用memo优化，避免不必要的重新渲染
+ */
 EditorComponent.displayName = 'EditorComponent';
 
 export default EditorComponent;
