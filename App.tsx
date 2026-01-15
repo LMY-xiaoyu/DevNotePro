@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import NoteList from './components/NoteList';
@@ -177,8 +178,35 @@ const App: React.FC = () => {
         if (localFolders) loadedFolders = JSON.parse(localFolders);
       }
 
-      if (loadedNotes && loadedNotes.length > 0) setNotes(loadedNotes);
-      else if (!isFloatingWindow) {
+      // --- Cleanup logic: Remove blank notes on launch ---
+      if (loadedNotes && loadedNotes.length > 0) {
+        const initialCount = loadedNotes.length;
+        const cleanedNotes = loadedNotes.filter(n => {
+          const isBlank = n.title.trim() === '' && n.content.trim() === '' && (!n.tags || n.tags.length === 0);
+          if (isBlank) {
+            // Remove from disk if using IPC
+            if (ipcRenderer) ipcRenderer.invoke('delete-note', n.id);
+            return false;
+          }
+          return true;
+        });
+
+        const deletedCount = initialCount - cleanedNotes.length;
+        loadedNotes = cleanedNotes;
+        
+        if (deletedCount > 0 && !isFloatingWindow) {
+          addToast(`已自动清理 ${deletedCount} 条空白笔记`, 'info');
+        }
+      }
+
+      if (loadedNotes && loadedNotes.length > 0) {
+        setNotes(loadedNotes);
+        if (!isFloatingWindow) {
+          const lastNote = loadedNotes[0];
+          setActiveNoteId(lastNote.id);
+          setOpenNoteIds([lastNote.id]);
+        }
+      } else if (!isFloatingWindow) {
         const welcome: Note = { id: 'welcome', title: '欢迎使用 DevNote Pro', content: `# 全新高性能架构\n\n- **独立文件存储**: 每个笔记现在保存为独立的 JSON 文件。\n- **图片支持**: 直接粘贴图片到编辑器。\n- **原生独立窗口**: 拖拽标签页向下，变为独立系统窗口。`, tags: ['版本更新'], folderId: 'all', language: 'markdown', createdAt: Date.now(), updatedAt: Date.now(), isArchived: false, isPinned: true };
         setNotes([welcome]);
         setActiveNoteId(welcome.id);
