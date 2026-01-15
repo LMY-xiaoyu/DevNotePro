@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { Trash2, Pin, PinOff, Tag as TagIcon, ExternalLink, Hash as HashIcon, Plus as PlusIcon, Save, X, ArrowUpToLine } from 'lucide-react';
 import Editor from 'react-simple-code-editor';
 import Prism from 'prismjs';
@@ -30,7 +30,7 @@ interface EditorProps {
   onToggleWindowTop: () => void;
 }
 
-const EditorComponent: React.FC<EditorProps> = ({ 
+const EditorComponent: React.FC<EditorProps> = memo(({ 
   note, 
   onUpdateNote, 
   onDeleteNote, 
@@ -177,9 +177,29 @@ const EditorComponent: React.FC<EditorProps> = ({
           <div className="h-6 w-[1px] bg-zinc-200 dark:bg-zinc-800 mx-2" />
           <button onClick={onSave} data-tooltip="保存 (Ctrl + S)" className="p-2 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"><Save size={18} /></button>
           <button onClick={handleTogglePin} data-tooltip={note.isPinned ? "取消笔记置顶" : "置顶笔记"} className={`p-2 rounded-lg transition-colors ${note.isPinned ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>{note.isPinned ? <Pin size={18} fill="currentColor" /> : <PinOff size={18} />}</button>
-          {viewState === 'floating' && (<button onClick={onToggleWindowTop} data-tooltip={isWindowOnTop ? "取消窗口置顶" : "窗口置顶"} className={`p-2 rounded-lg transition-colors ${isWindowOnTop ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}><ArrowUpToLine size={18} /></button>)}
-          <button onClick={() => setViewState(viewState === 'standard' ? 'floating' : 'standard')} data-tooltip={viewState === 'standard' ? '分离为独立窗口' : '关闭此窗口'} className="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors">{viewState === 'standard' ? <ExternalLink size={18} /> : <X size={18} />}</button>
-          <button onClick={() => onDeleteNote(note.id)} data-tooltip="删除笔记" className="p-2 text-zinc-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"><Trash2 size={18} /></button>
+          {viewState === 'floating' && (
+            <button 
+              onClick={onToggleWindowTop} 
+              data-tooltip={isWindowOnTop ? "取消窗口置顶" : "窗口置顶"} 
+              className={`p-2 rounded-lg transition-colors ${isWindowOnTop ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
+            >
+              <ArrowUpToLine size={18} />
+            </button>
+          )}
+          <button 
+            onClick={() => setViewState(viewState === 'standard' ? 'floating' : 'standard')} 
+            data-tooltip={viewState === 'standard' ? '分离为独立窗口' : '关闭此窗口'} 
+            className="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
+          >
+            {viewState === 'standard' ? <ExternalLink size={18} /> : <X size={18} />}
+          </button>
+          <button 
+            onClick={() => onDeleteNote(note.id)} 
+            data-tooltip="删除笔记" 
+            className="p-2 text-zinc-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+          >
+            <Trash2 size={18} />
+          </button>
         </div>
       </div>
 
@@ -187,14 +207,34 @@ const EditorComponent: React.FC<EditorProps> = ({
         {isAddingTag ? (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-900 border border-blue-500/50">
             <HashIcon size={10} className="text-zinc-400" />
-            <input ref={tagInputRef} type="text" value={newTagValue} onChange={(e) => setNewTagValue(e.target.value)} onKeyDown={handleKeyDownTag} onBlur={handleSubmitTag} placeholder="输入标签..." className="w-20 bg-transparent text-xs outline-none text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 no-drag" />
+            <input 
+              ref={tagInputRef} 
+              type="text" 
+              value={newTagValue} 
+              onChange={(e) => setNewTagValue(e.target.value)} 
+              onKeyDown={handleKeyDownTag} 
+              onBlur={handleSubmitTag} 
+              placeholder="输入标签..." 
+              className="w-20 bg-transparent text-xs outline-none text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 no-drag"
+            />
           </div>
         ) : (
-          <button onClick={handleStartAddTag} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-zinc-400 hover:text-blue-600 transition-all uppercase tracking-wider whitespace-nowrap"><PlusIcon size={12} /> 添加标签</button>
+          <button 
+            onClick={handleStartAddTag} 
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-zinc-400 hover:text-blue-600 transition-all uppercase tracking-wider whitespace-nowrap"
+          >
+            <PlusIcon size={12} /> 添加标签
+          </button>
         )}
         {note.tags.map(tag => (
-          <span key={tag} className={`group ${getTagStyle(tag)}`}>{tag}
-            <button onClick={() => handleRemoveTag(tag)} className="w-0 p-0 overflow-hidden opacity-0 group-hover:w-auto group-hover:opacity-100 group-hover:ml-1 group-hover:p-0.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-sm transition-all duration-200 ease-in-out"><Trash2 size={10} /></button>
+          <span key={tag} className={`group ${getTagStyle(tag)}`}>
+            {tag}
+            <button 
+              onClick={() => handleRemoveTag(tag)} 
+              className="w-0 p-0 overflow-hidden opacity-0 group-hover:w-auto group-hover:opacity-100 group-hover:ml-1 group-hover:p-0.5 hover:bg-black/10 dark:hover:bg-white/10 rounded-sm transition-all duration-200 ease-in-out"
+            >
+              <Trash2 size={10} />
+            </button>
           </span>
         ))}
       </div>
@@ -216,11 +256,20 @@ const EditorComponent: React.FC<EditorProps> = ({
       </div>
       
       <div className="px-6 py-2 border-t border-zinc-100 dark:border-zinc-900 flex justify-between items-center text-[10px] text-zinc-400 uppercase tracking-widest font-medium shrink-0">
-        <div className="flex items-center gap-4"><span>修改时间：{new Date(note.updatedAt).toLocaleString('zh-CN')}</span></div>
-        <div className="flex items-center gap-4"><span>{note.content.length} 字符</span><span>{note.content.split(/\s+/).filter(Boolean).length} 词</span><span className="text-blue-500">{LANGUAGES.find(l => l.value === note.language)?.label || '纯文本'}</span></div>
+        <div className="flex items-center gap-4">
+          <span>修改时间：{new Date(note.updatedAt).toLocaleString('zh-CN')}</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span>{note.content.length} 字符</span>
+          <span>{note.content.split(/\s+/).filter(Boolean).length} 词</span>
+          <span className="text-blue-500">{LANGUAGES.find(l => l.value === note.language)?.label || '纯文本'}</span>
+        </div>
       </div>
     </div>
   );
-};
+});
+
+// 使用memo优化，避免不必要的重新渲染
+EditorComponent.displayName = 'EditorComponent';
 
 export default EditorComponent;

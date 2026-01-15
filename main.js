@@ -313,6 +313,10 @@ ipcMain.handle('delete-note', async (event, noteId) => {
   try {
     const filePath = path.join(NOTES_DIR, `${noteId}.json`);
     if (fs.existsSync(filePath)) await fsPromises.unlink(filePath);
+    // 广播笔记删除事件到所有窗口
+    for (const win of windows) {
+      if (!win.isDestroyed()) win.webContents.send('note-deleted', noteId);
+    }
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Folder, Archive, Plus, Settings as SettingsIcon, FolderPlus, Edit2, Trash2 } from 'lucide-react';
 import { DEFAULT_FOLDERS } from '../constants';
 import { Folder as FolderType } from '../types';
@@ -19,7 +19,7 @@ interface SidebarProps {
   onOpenSettings: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ 
+const Sidebar: React.FC<SidebarProps> = React.memo(({ 
   activeFolder, 
   setActiveFolder, 
   activeTag,
@@ -33,12 +33,12 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; folderId: string } | null>(null);
 
-  const handleContextMenu = (e: React.MouseEvent, folderId: string) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent, folderId: string) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY, folderId });
-  };
+  }, []);
 
-  const getContextMenuItems = (): MenuItem[] => [
+  const getContextMenuItems = useCallback((contextMenu: { x: number; y: number; folderId: string } | null, onRenameFolder: (id: string) => void, onDeleteFolder: (id: string) => void): MenuItem[] => [
     {
       label: '重命名',
       icon: <Edit2 size={14} />,
@@ -50,11 +50,11 @@ const Sidebar: React.FC<SidebarProps> = ({
       danger: true,
       action: () => contextMenu && onDeleteFolder(contextMenu.folderId)
     }
-  ];
+  ], []);
 
   // 分离归档文件夹
-  const standardFolders = DEFAULT_FOLDERS.filter(f => f.id !== 'archive');
-  const archiveFolder = DEFAULT_FOLDERS.find(f => f.id === 'archive');
+  const standardFolders = useMemo(() => DEFAULT_FOLDERS.filter(f => f.id !== 'archive'), []);
+  const archiveFolder = useMemo(() => DEFAULT_FOLDERS.find(f => f.id === 'archive'), []);
 
   return (
     <div className="w-64 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full bg-zinc-50/50 dark:bg-zinc-900/50 backdrop-blur-xl">
@@ -157,12 +157,14 @@ const Sidebar: React.FC<SidebarProps> = ({
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          items={getContextMenuItems()}
+          items={getContextMenuItems(contextMenu, onRenameFolder, onDeleteFolder)}
           onClose={() => setContextMenu(null)}
         />
       )}
     </div>
   );
-};
+});
+
+Sidebar.displayName = 'Sidebar';
 
 export default Sidebar;
