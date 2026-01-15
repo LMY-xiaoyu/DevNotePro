@@ -365,7 +365,7 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
       }
     }
   };
-  const handlePinNote = (id: string) => { const n = notes.find(n => n.id === id); if (n) { const updated = { ...n, isPinned: !n.isPinned }; handleUpdateNote(id, { isPinned: !n.isPinned }); saveNotesToDisk(notes.map(note => note.id === id ? updated : note), id, true); } };
+  const handlePinNote = (id: string) => { const n = notes.find(n => n.id === id); if (n) { const updated = { ...n, isPinned: !n.isPinned }; const updatedNotes = notes.map(note => note.id === id ? updated : note); setNotes(updatedNotes); saveNotesToDisk(updatedNotes, id, true); } };
   const handleOpenWindow = async (id: string) => {
     const ipc = getIpcRenderer();
     if (ipc) {

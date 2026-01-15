@@ -9,6 +9,8 @@ const windows = new Set();
 let mainWindow = null; 
 let tray = null;
 let isQuitting = false; 
+// Track floating windows by note ID
+const floatingWindows = new Map();
 
 // --- Storage Configuration ---
 const DATA_DIR = app.isPackaged
@@ -110,6 +112,17 @@ function createWindow() {
 }
 
 function createFloatingWindow(noteId, isUnsaved = false) {
+  // 检查是否已经存在该笔记ID对应的浮动窗口
+  if (floatingWindows.has(noteId)) {
+    const existingWin = floatingWindows.get(noteId);
+    if (existingWin && !existingWin.isDestroyed()) {
+      // 如果存在，显示并聚焦该窗口
+      existingWin.show();
+      existingWin.focus();
+      return;
+    }
+  }
+
   const iconPath = getIconPath();
   const win = new BrowserWindow({
     width: 800,
@@ -143,7 +156,13 @@ function createFloatingWindow(noteId, isUnsaved = false) {
   });
 
   windows.add(win);
-  win.on('closed', () => windows.delete(win));
+  // 保存该笔记ID对应的浮动窗口
+  floatingWindows.set(noteId, win);
+  win.on('closed', () => {
+    windows.delete(win);
+    // 当窗口关闭时，从floatingWindows中移除
+    floatingWindows.delete(noteId);
+  });
 }
 
 // Fixed Tray New Note: Create a file and open it as a floating window directly

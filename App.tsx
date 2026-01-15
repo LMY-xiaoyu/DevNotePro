@@ -46,8 +46,10 @@ const App: React.FC = () => {
   const isUnsaved = queryParams.get('isUnsaved') === 'true';
 
   // 状态管理
-  // 笔记列表
+  // 笔记列表 - 只存储已保存到文件的内容
   const [notes, setNotes] = useState<Note[]>([]);
+  // 正在编辑的笔记临时数据 - 存储实时编辑的内容
+  const [editingNotes, setEditingNotes] = useState<Map<string, Note>>(new Map());
   // 自定义文件夹列表
   const [customFolders, setCustomFolders] = useState<Folder[]>([]);
   // 打开的标签页ID列表
@@ -154,27 +156,66 @@ const App: React.FC = () => {
     const ipcRenderer = getIpcRenderer();
     let success = false;
     let errorMsg = '';
+    
+    // 如果有指定保存的笔记ID，使用editingNotes中的临时数据
+    let noteToSave: Note | undefined;
+    if (savedNoteId) {
+      noteToSave = editingNotes.get(savedNoteId) || currentNotes.find(n => n.id === savedNoteId);
+    }
+    
     if (ipcRenderer) {
-      if (savedNoteId) {
-        const noteToSave = currentNotes.find(n => n.id === savedNoteId);
-        if (noteToSave) {
-          const result = await ipcRenderer.invoke('save-note', noteToSave);
-          if (result.success) success = true; else errorMsg = result.error;
-        }
+      if (savedNoteId && noteToSave) {
+        const result = await ipcRenderer.invoke('save-note', noteToSave);
+        if (result.success) success = true; else errorMsg = result.error;
       } else {
-        const result = await ipcRenderer.invoke('save-notes', currentNotes);
+        // 如果是保存所有笔记，需要检查每个笔记是否有临时编辑数据
+        const notesToSave = currentNotes.map(note => {
+          const editingNote = editingNotes.get(note.id);
+          return editingNote || note;
+        });
+        const result = await ipcRenderer.invoke('save-notes', notesToSave);
         if (result.success) success = true; else errorMsg = result.error;
       }
     } else {
       try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(currentNotes));
+        // 如果是保存所有笔记，需要检查每个笔记是否有临时编辑数据
+        const notesToSave = currentNotes.map(note => {
+          const editingNote = editingNotes.get(note.id);
+          return editingNote || note;
+        });
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(notesToSave));
         success = true;
       } catch (e) { errorMsg = 'Local Storage Full'; }
     }
-    if (success && !silent) addToast('已保存', 'success');
-    if (success && savedNoteId) {
-      setUnsavedNoteIds(prev => { const next = new Set(prev); next.delete(savedNoteId); return next; });
+    
+    if (success) {
+      if (!silent) addToast('已保存', 'success');
+      
+      if (savedNoteId && noteToSave) {
+        // 更新notes数组，使其包含最新的保存内容
+        setNotes(prev => prev.map(n => n.id === savedNoteId ? noteToSave! : n));
+        // 从editingNotes中移除已保存的笔记
+        setEditingNotes(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(savedNoteId);
+          return newMap;
+        });
+        // 从unsavedNoteIds中移除已保存的笔记
+        setUnsavedNoteIds(prev => { const next = new Set(prev); next.delete(savedNoteId); return next; });
+      } else {
+        // 如果是保存所有笔记，更新整个notes数组
+        const updatedNotes = currentNotes.map(note => {
+          const editingNote = editingNotes.get(note.id);
+          return editingNote || note;
+        });
+        setNotes(updatedNotes);
+        // 清空editingNotes
+        setEditingNotes(new Map());
+        // 清空unsavedNoteIds
+        setUnsavedNoteIds(new Set());
+      }
     }
+    
     if (!success) addToast('保存失败: ' + errorMsg, 'warning');
   };
 
@@ -295,6 +336,8 @@ const App: React.FC = () => {
       // 设置笔记状态
       if (loadedNotes) {
         setNotes(loadedNotes);
+        // 重置editingNotes状态，确保它为空，这样当用户打开笔记时，会从notes状态中读取文件中持久化的内容
+        setEditingNotes(new Map());
         if (loadedNotes.length > 0) {
           if (!isFloatingWindow) {
             // 在主窗口中，设置第一个笔记为激活状态
@@ -494,8 +537,21 @@ const App: React.FC = () => {
    * @param updates 更新内容
    */
   const handleUpdateNote = (id: string, updates: Partial<Note>) => {
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
-    setUnsavedNoteIds(prev => new Set(prev).add(id));
+    // 先从notes中找到原始笔记
+    const originalNote = notes.find(n => n.id === id);
+    if (originalNote) {
+      // 从editingNotes中找到正在编辑的笔记，如果没有则使用原始笔记
+      const currentEditingNote = editingNotes.get(id) || originalNote;
+      // 更新临时编辑状态
+      const updatedEditingNote = { ...currentEditingNote, ...updates };
+      setEditingNotes(prev => {
+        const newMap = new Map(prev);
+        newMap.set(id, updatedEditingNote);
+        return newMap;
+      });
+      // 添加到未保存集合
+      setUnsavedNoteIds(prev => new Set(prev).add(id));
+    }
   };
   /**
    * 处理重新排序笔记
@@ -555,6 +611,12 @@ const App: React.FC = () => {
     if (!force && unsavedNoteIds.has(id)) { showConfirm('关闭确认', '该笔记有未保存的更改，确定要关闭吗？', () => handleCloseTab(id, undefined, true), false); return; }
     const nextOpen = openNoteIds.filter(oid => oid !== id); setOpenNoteIds(nextOpen);
     setUnsavedNoteIds(prev => { const next = new Set(prev); next.delete(id); return next; });
+    // 从editingNotes中移除该笔记的临时数据，确保下次打开时显示的是文件中持久化的内容
+    setEditingNotes(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(id);
+      return newMap;
+    });
     if (activeNoteId === id) setActiveNoteId(nextOpen.length > 0 ? nextOpen[nextOpen.length - 1] : null);
   };
   /**
@@ -566,26 +628,33 @@ const App: React.FC = () => {
     let ids: string[] = [];
     switch (action) { case 'others': ids = openNoteIds.filter(id => id !== currentId); break; case 'left': ids = openNoteIds.slice(0, currentIdx); break; case 'right': ids = openNoteIds.slice(currentIdx + 1); break; case 'all': ids = [...openNoteIds]; break; }
     const unsaved = ids.filter(id => unsavedNoteIds.has(id));
-    if (unsaved.length > 0) { showConfirm('关闭确认', `有 ${unsaved.length} 个未保存的标签，确定要全部关闭吗？`, () => { const next = openNoteIds.filter(id => !ids.includes(id)); setOpenNoteIds(next); if (action === 'all') setActiveNoteId(null); else if (!next.includes(activeNoteId || '')) setActiveNoteId(currentId); }, false); return; }
+    if (unsaved.length > 0) { showConfirm('关闭确认', `有 ${unsaved.length} 个未保存的标签，确定要全部关闭吗？`, () => { const next = openNoteIds.filter(id => !ids.includes(id)); setOpenNoteIds(next); if (action === 'all') setActiveNoteId(null); else if (!next.includes(activeNoteId || '')) setActiveNoteId(currentId); ids.forEach(id => setUnsavedNoteIds(prev => { const next = new Set(prev); next.delete(id); return next; })); setEditingNotes(prev => { const newMap = new Map(prev); ids.forEach(id => newMap.delete(id)); return newMap; }); }, false); return; }
     const next = openNoteIds.filter(id => !ids.includes(id)); setOpenNoteIds(next);
     if (action === 'all') setActiveNoteId(null); else if (!next.includes(activeNoteId || '')) setActiveNoteId(currentId);
+    // 从editingNotes中移除关闭的标签页的临时数据
+    ids.forEach(id => setUnsavedNoteIds(prev => { const next = new Set(prev); next.delete(id); return next; }));
+    setEditingNotes(prev => {
+      const newMap = new Map(prev);
+      ids.forEach(id => newMap.delete(id));
+      return newMap;
+    });
   };
   /**
    * 处理标签页拖拽结束
    * @param e 拖拽事件
    * @param id 笔记ID
    */
-  const handleTabDragEnd = (e: React.DragEvent, id: string) => { if (e.clientY > 150) { const ipc = getIpcRenderer(); if (ipc) { const note = notes.find(n => n.id === id); if (note) { const isUnsaved = unsavedNoteIds.has(id); ipc.invoke('open-note-window', { ...note, isUnsaved }); handleCloseTab(id, undefined, true); } } } };
+  const handleTabDragEnd = (e: React.DragEvent, id: string) => { if (e.clientY > 150) { const ipc = getIpcRenderer(); if (ipc) { const note = editingNotes.get(id) || notes.find(n => n.id === id); if (note) { const isUnsaved = unsavedNoteIds.has(id); ipc.invoke('open-note-window', { ...note, isUnsaved }); handleCloseTab(id, undefined, true); } } } };
   /**
    * 处理置顶笔记
    * @param id 笔记ID
    */
-  const handlePinNote = (id: string) => { const n = notes.find(n => n.id === id); if (n) { const updated = { ...n, isPinned: !n.isPinned }; handleUpdateNote(id, { isPinned: !n.isPinned }); saveNotesToDisk(notes.map(note => note.id === id ? updated : note), id, true); } };
+  const handlePinNote = (id: string) => { const n = notes.find(n => n.id === id); if (n) { const updated = { ...n, isPinned: !n.isPinned }; const updatedNotes = notes.map(note => note.id === id ? updated : note); setNotes(updatedNotes); saveNotesToDisk(updatedNotes, id, true); } };
   /**
    * 处理打开笔记窗口
    * @param id 笔记ID
    */
-  const handleOpenWindow = (id: string) => { const ipc = getIpcRenderer(); if (ipc) { const note = notes.find(n => n.id === id); if (note) { const isUnsaved = unsavedNoteIds.has(id); ipc.invoke('open-note-window', { ...note, isUnsaved }); handleCloseTab(id, undefined, true); } } };
+  const handleOpenWindow = (id: string) => { const ipc = getIpcRenderer(); if (ipc) { const note = editingNotes.get(id) || notes.find(n => n.id === id); if (note) { const isUnsaved = unsavedNoteIds.has(id); ipc.invoke('open-note-window', { ...note, isUnsaved }); handleCloseTab(id, undefined, true); } } };
   /**
    * 处理移动笔记请求
    * @param id 笔记ID
@@ -624,18 +693,21 @@ const App: React.FC = () => {
   ];
   /**
    * 当前激活的笔记
+   * 优先使用editingNotes中的临时数据，这样编辑器就能显示实时编辑的内容
    */
-  const activeNote = notes.find(n => n.id === activeNoteId) || null;
+  const activeNote = editingNotes.get(activeNoteId || '') || notes.find(n => n.id === activeNoteId) || null;
 
   /**
    * 浮动窗口渲染逻辑
    */
   if (isFloatingWindow) {
-    // 检查是否有对应的笔记
-    const noteToUse = activeNote;
+    // 优先使用editingNotes中的临时数据，这样编辑器就能显示实时编辑的内容
+    const editingNote = editingNotes.get(floatingNoteId || '');
+    // 其次使用notes中的数据
+    const noteFromNotes = notes.find(n => n.id === floatingNoteId);
     
     // 如果没有找到对应的笔记，尝试单独读取该笔记
-    if (!noteToUse && floatingNoteId) {
+    if (!editingNote && !noteFromNotes && floatingNoteId) {
       const ipcRenderer = getIpcRenderer();
       if (ipcRenderer) {
         ipcRenderer.invoke('read-note', floatingNoteId).then((note: Note | null) => {
@@ -666,7 +738,7 @@ const App: React.FC = () => {
     };
     
     // 使用找到的笔记或默认笔记
-    const finalNote = noteToUse || defaultNote;
+    const finalNote = editingNote || noteFromNotes || defaultNote;
     
     return (
       <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800`}>
