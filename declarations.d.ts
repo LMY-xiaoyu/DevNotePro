@@ -1,0 +1,2 @@
+
+declare module 'react-simple-code-editor';
