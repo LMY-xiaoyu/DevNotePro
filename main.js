@@ -456,17 +456,11 @@ ipcMain.handle('save-folders', async (event, folders) => {
 });
 
 ipcMain.handle('read-settings', async () => {
-  console.log('SETTINGS_FILE path:', SETTINGS_FILE);
   try {
     if (fs.existsSync(SETTINGS_FILE)) {
-      console.log('Settings file exists');
       const data = await fsPromises.readFile(SETTINGS_FILE, 'utf-8');
-      console.log('Settings file content:', data);
-      const settings = JSON.parse(data);
-      console.log('Parsed settings:', settings);
-      return settings;
+      return JSON.parse(data);
     }
-    console.log('Settings file does not exist');
   } catch (err) {
     console.error('Failed to read settings:', err);
   }
@@ -485,11 +479,9 @@ ipcMain.handle('read-settings', async () => {
     alwaysOnTop: false,
     minimizeToTray: true
   };
-  console.log('Using default settings:', defaultSettings);
   // 将默认设置保存到文件
   try {
     await fsPromises.writeFile(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2), 'utf-8');
-    console.log('Default settings saved to file');
   } catch (err) {
     console.error('Failed to save default settings:', err);
   }

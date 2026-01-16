@@ -122,33 +122,11 @@ const App: React.FC = () => {
    * @returns ipcRenderer实例或null
    */
   const getIpcRenderer = () => {
-    console.log('Getting ipcRenderer...');
-    if (typeof window !== 'undefined') {
-      console.log('Window exists');
-      if ((window as any).require) {
-        console.log('window.require exists');
-        try {
-          const electron = (window as any).require('electron');
-          console.log('Electron loaded:', electron);
-          const ipcRenderer = electron.ipcRenderer;
-          console.log('ipcRenderer loaded:', ipcRenderer);
-          return ipcRenderer;
-        } catch (e) {
-          console.error('Failed to get ipcRenderer:', e);
-          return null;
-        }
-      } else {
-        console.log('window.require does not exist');
-        // 尝试使用window.ipcRenderer（如果直接暴露的话）
-        if ((window as any).ipcRenderer) {
-          console.log('window.ipcRenderer exists');
-          return (window as any).ipcRenderer;
-        }
-      }
-    } else {
-      console.log('Window does not exist');
+    if (typeof window !== 'undefined' && (window as any).require) {
+      try { return (window as any).require('electron').ipcRenderer; } catch (e) { return null; }
     }
-    return null;
+    // 尝试使用window.ipcRenderer（如果直接暴露的话）
+    return typeof window !== 'undefined' ? (window as any).ipcRenderer || null : null;
   };
 
   /**
@@ -302,7 +280,6 @@ const App: React.FC = () => {
    * 3. 设置初始状态
    */
   useEffect(() => {
-    console.log('Initializing data...');
     const initData = async () => {
       let loadedNotes: Note[] | null = null;
       let loadedFolders: Folder[] | null = null;
