@@ -93,14 +93,23 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
     ).sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
   }, [notes, searchQuery]);
 
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
   const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
     setDraggedNoteId(id);
     e.dataTransfer.setData('noteId', id);
     e.dataTransfer.effectAllowed = 'move';
+    // 设置拖拽时的视觉效果
+    e.dataTransfer.dropEffect = 'move';
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent) => {
+  const handleDragOver = useCallback((e: React.DragEvent, id: string) => {
     e.preventDefault();
+    setDragOverId(id);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverId(null);
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
@@ -110,6 +119,7 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
       onReorderNotes(draggedId, targetId);
     }
     setDraggedNoteId(null);
+    setDragOverId(null);
   }, [onReorderNotes]);
 
   const handleToggleSelect = useCallback((e: React.MouseEvent, id: string, onToggleSelect: (id: string) => void) => {
@@ -163,7 +173,8 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
 
       <div className="flex-1 overflow-y-auto">
         {filteredNotes.length > 0 ? (
-          filteredNotes.map((note) => {
+          <div className="space-y-0">
+            {filteredNotes.map((note) => {
              const isSelected = selectedListIds.has(note.id);
              const displayTitle = note.title.trim() || note.content.trim().slice(0, 30).replace(/\n/g, ' ') || '无标题笔记';
               
@@ -172,11 +183,12 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
                 key={note.id}
                 draggable
                 onDragStart={(e) => handleDragStart(e, note.id)}
-                onDragOver={handleDragOver}
+                onDragOver={(e) => handleDragOver(e, note.id)}
+                onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, note.id)}
-                className={`group relative w-full text-left p-4 border-b border-zinc-100 dark:border-zinc-900 transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900/50 ${
+                className={`group relative w-full text-left p-4 border-b border-zinc-100 dark:border-zinc-900 transition-all duration-200 ease-in-out hover:bg-zinc-50 dark:hover:bg-zinc-900/50 ${
                   selectedNoteId === note.id ? 'bg-zinc-50 dark:bg-zinc-900 border-l-4 border-l-blue-500' : 'border-l-4 border-l-transparent'
-                } ${draggedNoteId === note.id ? 'opacity-50' : ''}`}
+                } ${draggedNoteId === note.id ? 'opacity-50 scale-95' : ''} ${dragOverId === note.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-blue-400' : ''}`}
                 onClick={() => onSelectNote(note.id)}
                 onContextMenu={(e) => handleContextMenu(e, note.id)}
               >
@@ -227,7 +239,8 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
                 </div>
               </div>
             );
-          })
+          })}
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-zinc-400 p-8 text-center">
             <Search size={32} className="mb-2 opacity-20" />

@@ -182,7 +182,8 @@ async function handleNewNoteFromTray() {
   };
   
   try {
-    await fsPromises.writeFile(path.join(NOTES_DIR, `${newId}.json`), JSON.stringify(newNote, null, 2), 'utf-8');
+    const encodedNote = encodeNote(newNote);
+    await fsPromises.writeFile(path.join(NOTES_DIR, `${newId}.json`), JSON.stringify(encodedNote, null, 2), 'utf-8');
     createFloatingWindow(newId);
     // Broadcast to main window if it exists to refresh list
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -284,7 +285,9 @@ ipcMain.handle('open-note-window', async (event, noteData) => {
   // 这样可以确保新窗口能够加载到最新的笔记内容
   // 移除isUnsaved属性，因为它不是笔记数据的一部分
   const { isUnsaved, ...noteWithoutUnsaved } = noteData;
-  await fsPromises.writeFile(notePath, JSON.stringify(noteWithoutUnsaved, null, 2), 'utf-8');
+  // 对笔记数据进行base64编码，确保特殊字符不会导致文件损坏
+  const encodedNote = encodeNote(noteWithoutUnsaved);
+  await fsPromises.writeFile(notePath, JSON.stringify(encodedNote, null, 2), 'utf-8');
   
   // 创建浮动窗口，传递isUnsaved状态
   createFloatingWindow(noteId, isUnsaved);
@@ -292,21 +295,65 @@ ipcMain.handle('open-note-window', async (event, noteData) => {
 
 // --- File System IPC ---
 
+// 解码笔记标题和内容
+function decodeNote(note) {
+  if (!note) return null;
+  try {
+    if (note.title) {
+      note.title = Buffer.from(note.title, 'base64').toString('utf8');
+    }
+    if (note.content) {
+      note.content = Buffer.from(note.content, 'base64').toString('utf8');
+    }
+    return note;
+  } catch (e) {
+    console.error('Failed to decode note:', e);
+    return note; // 如果解码失败，返回原始笔记
+  }
+}
+
+// 编码笔记标题和内容
+function encodeNote(note) {
+  if (!note) return null;
+  try {
+    const encodedNote = { ...note };
+    if (encodedNote.title) {
+      encodedNote.title = Buffer.from(encodedNote.title, 'utf8').toString('base64');
+    }
+    if (encodedNote.content) {
+      encodedNote.content = Buffer.from(encodedNote.content, 'utf8').toString('base64');
+    }
+    return encodedNote;
+  } catch (e) {
+    console.error('Failed to encode note:', e);
+    return note; // 如果编码失败，返回原始笔记
+  }
+}
+
 ipcMain.handle('read-notes', async () => {
   try {
+    console.log('Reading notes from:', NOTES_DIR);
     const files = await fsPromises.readdir(NOTES_DIR);
+    console.log('Found files:', files);
     const jsonFiles = files.filter(file => file.endsWith('.json'));
+    console.log('Found JSON files:', jsonFiles);
     const readPromises = jsonFiles.map(async file => {
       try {
         const content = await fsPromises.readFile(path.join(NOTES_DIR, file), 'utf-8');
-        return JSON.parse(content);
+        const note = JSON.parse(content);
+        const decodedNote = decodeNote(note);
+        console.log('Read note:', file, decodedNote.id);
+        return decodedNote;
       } catch (e) {
+        console.error('Failed to read note:', file, e);
         return null;
       }
     });
     const notes = (await Promise.all(readPromises)).filter(n => n !== null);
+    console.log('Loaded notes:', notes.length);
     return notes.sort((a, b) => b.updatedAt - a.updatedAt);
   } catch (err) {
+    console.error('Failed to read notes:', err);
     return [];
   }
 });
@@ -316,7 +363,8 @@ ipcMain.handle('read-note', async (event, noteId) => {
     const notePath = path.join(NOTES_DIR, `${noteId}.json`);
     if (fs.existsSync(notePath)) {
       const content = await fsPromises.readFile(notePath, 'utf-8');
-      return JSON.parse(content);
+      const note = JSON.parse(content);
+      return decodeNote(note);
     }
   } catch (err) {
     console.error('Failed to read note:', err);
@@ -326,8 +374,9 @@ ipcMain.handle('read-note', async (event, noteId) => {
 
 ipcMain.handle('save-note', async (event, note) => {
   try {
+    const encodedNote = encodeNote(note);
     const filePath = path.join(NOTES_DIR, `${note.id}.json`);
-    await fsPromises.writeFile(filePath, JSON.stringify(note, null, 2), 'utf-8');
+    await fsPromises.writeFile(filePath, JSON.stringify(encodedNote, null, 2), 'utf-8');
     for (const win of windows) {
       if (!win.isDestroyed()) win.webContents.send('note-updated-single', note);
     }
@@ -339,9 +388,10 @@ ipcMain.handle('save-note', async (event, note) => {
 
 ipcMain.handle('save-notes', async (event, notes) => {
   try {
-    const writePromises = notes.map(note => 
-      fsPromises.writeFile(path.join(NOTES_DIR, `${note.id}.json`), JSON.stringify(note, null, 2), 'utf-8')
-    );
+    const writePromises = notes.map(note => {
+      const encodedNote = encodeNote(note);
+      return fsPromises.writeFile(path.join(NOTES_DIR, `${note.id}.json`), JSON.stringify(encodedNote, null, 2), 'utf-8');
+    });
     await Promise.all(writePromises);
     for (const win of windows) {
       if (!win.isDestroyed()) win.webContents.send('notes-updated', notes);
