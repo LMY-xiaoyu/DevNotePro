@@ -48,6 +48,8 @@ const App: React.FC = () => {
   // 状态管理
   // 笔记列表 - 只存储已保存到文件的内容
   const [notes, setNotes] = useState<Note[]>([]);
+  // 标签页头部的ref，用于添加事件监听器
+  const tabHeaderRef = useRef<HTMLDivElement>(null);
   // 正在编辑的笔记临时数据 - 存储实时编辑的内容
   const [editingNotes, setEditingNotes] = useState<Map<string, Note>>(new Map());
   // 自定义文件夹列表
@@ -810,6 +812,30 @@ const App: React.FC = () => {
     return n.folderId === activeFolder && !n.isArchived;
   });
 
+  // 为标签页头部添加鼠标滚轮事件监听器，使用 { passive: false } 选项
+  useEffect(() => {
+    const tabHeader = tabHeaderRef.current;
+    if (!tabHeader) return;
+    
+    const handleWheel = (e: WheelEvent) => {
+      // 如果用户按住了 Shift 键，使用浏览器默认的水平滚动行为
+      if (e.shiftKey) {
+        return;
+      }
+      // 否则，使用鼠标滚轮控制水平滚动
+      e.preventDefault();
+      tabHeader.scrollBy({ left: e.deltaY, behavior: 'auto' });
+    };
+    
+    // 添加事件监听器，设置 passive: false
+    tabHeader.addEventListener('wheel', handleWheel, { passive: false });
+    
+    // 清理函数
+    return () => {
+      tabHeader.removeEventListener('wheel', handleWheel);
+    };
+  }, [openNoteIds]);
+
   return (
     <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-900 dark:to-zinc-800`}>
       <TitleBar title="开发者笔记 Pro (DevNote Pro)" onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={() => getIpcRenderer()?.send('window-close')} accentColor={settings.accentColor} />
@@ -827,7 +853,7 @@ const App: React.FC = () => {
         {/* 编辑区域卡片 */}
         <div className="flex-1 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
           {openNoteIds.length > 0 && (
-            <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto scrollbar-hidden tab-scrollbar">
+            <div ref={tabHeaderRef} className="flex items-center bg-zinc-100 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto scrollbar-hidden tab-scrollbar">
               {openNoteIds.map(id => {
                 const note = notes.find(n => n.id === id); if (!note) return null;
                 const isActive = activeNoteId === id; const isUnsaved = unsavedNoteIds.has(id);
