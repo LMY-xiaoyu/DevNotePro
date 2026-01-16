@@ -57,7 +57,7 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
   const archiveFolder = useMemo(() => DEFAULT_FOLDERS.find(f => f.id === 'archive'), []);
 
   return (
-    <div className="w-64 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full bg-zinc-50/50 dark:bg-zinc-900/50 backdrop-blur-xl">
+    <div className="w-64 flex flex-col h-full bg-zinc-50/50 dark:bg-zinc-900/50 backdrop-blur-xl">
       <div className="p-4 flex items-center gap-2">
         <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-lg">
           D
@@ -65,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
         <h1 className="font-bold text-zinc-800 dark:text-zinc-100">开发者笔记 Pro</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-hidden px-3 space-y-6">
         <div>
           <div className="flex items-center justify-between px-2 mb-2">
             <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">工作区</h2>

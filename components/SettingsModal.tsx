@@ -7,10 +7,11 @@ import { ACCENT_COLORS } from '../constants';
 interface SettingsModalProps {
   settings: Settings;
   onUpdateSettings: (updates: Partial<Settings>) => void;
+  onSaveSettings: () => void;
   onClose: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onUpdateSettings, onClose }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onUpdateSettings, onSaveSettings, onClose }) => {
   // Use local state to handle immediate UI feedback and prevent "jumping" during IPC sync
   const [localSettings, setLocalSettings] = useState<Settings>(settings);
 
@@ -133,7 +134,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onUpdateSetting
 
         <div className="p-6 bg-zinc-50 dark:bg-zinc-950 border-t border-zinc-100 dark:border-zinc-800">
           <button
-            onClick={onClose}
+            onClick={() => {
+              onSaveSettings();
+              onClose();
+            }}
             style={{ backgroundColor: localSettings.accentColor }}
             className="w-full text-white py-3.5 rounded-xl font-bold text-sm shadow-lg hover:brightness-110 active:scale-[0.98] transition-all"
           >

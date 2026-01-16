@@ -10,9 +10,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <style>
-      /* 强制背景色为深色，与 main.js 中的 backgroundColor 保持一致，彻底消除白屏闪烁 */
+      /* 设置基础字体和溢出控制 */
       body { 
-        background-color: #09090b !important;
         font-family: 'Inter', 'Microsoft YaHei', 'PingFang SC', sans-serif;
         overflow: hidden;
       }
@@ -51,18 +50,60 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #8886;
       }
+
+      /* 隐藏滚动条，鼠标移入时显示（通过始终保持滚动条宽度确保内容位置不变） */
+      .scrollbar-hidden {
+        overflow: auto;
+      }
       
-      /* Firefox 滚动条样式 */
-      @supports (scrollbar-width: thin) {
-        .scrollbar-overlay {
-          scrollbar-width: thin;
-          scrollbar-color: transparent transparent;
-          transition: scrollbar-color 0.2s ease;
-        }
-        
-        .scrollbar-overlay:hover {
-          scrollbar-color: #8884 transparent;
-        }
+      /* 始终保持滚动条宽度，通过透明度控制显示/隐藏 */
+      .scrollbar-hidden::-webkit-scrollbar {
+        width: 0.2rem;
+        height: 0.2rem;
+      }
+      .scrollbar-hidden::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .scrollbar-hidden::-webkit-scrollbar-thumb {
+        background: transparent;
+        border-radius: 4px;
+      }
+      
+      /* 鼠标移入时显示滚动条 */
+      .scrollbar-hidden:hover::-webkit-scrollbar-thumb {
+        background: #8884;
+      }
+      .scrollbar-hidden:hover::-webkit-scrollbar-thumb:hover {
+        background: #8886;
+      }
+      
+      /* 为 Firefox 设置 */
+      .scrollbar-hidden {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+      }
+      .scrollbar-hidden:hover {
+        scrollbar-color: #8884 transparent;
+      }
+      
+      /* 移除滚动容器的内边距，因为会影响标签页头部的布局 */
+      .scrollbar-hidden {
+        padding: 0;
+      }
+      
+      /* 为垂直滚动容器添加右边距，确保内容不被滚动条覆盖 */
+      .scrollbar-hidden.overflow-y-auto {
+        padding-right: 0.2rem;
+      }
+      
+      /* 为水平滚动容器添加下边距，确保内容不被滚动条覆盖 */
+      .scrollbar-hidden.overflow-x-auto {
+        padding-bottom: 0.2rem;
+      }
+      
+      /* 标签页头部滚动容器，确保没有额外的 padding */
+      .tab-scrollbar {
+        padding: 0 !important;
       }
       textarea:focus {
         outline: none;

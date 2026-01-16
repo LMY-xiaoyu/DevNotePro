@@ -141,7 +141,7 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
   }, []);
 
   return (
-    <div className="w-80 border-r border-zinc-200 dark:border-zinc-800 flex flex-col h-full bg-white dark:bg-zinc-950">
+    <div className="w-80 flex flex-col h-full bg-white dark:bg-zinc-950">
       <div className="p-4 border-b border-zinc-100 dark:border-zinc-900 space-y-3">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
@@ -171,7 +171,7 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scrollbar-hidden">
         {filteredNotes.length > 0 ? (
           <div className="space-y-0">
             {filteredNotes.map((note) => {
