@@ -882,7 +882,7 @@ const App: React.FC = () => {
       <TitleBar title="开发者笔记 Pro (DevNote Pro)" onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={() => getIpcRenderer()?.send('window-close')} accentColor={settings.accentColor} />
       <div className={`flex flex-1 overflow-hidden p-[0.26rem] gap-[0.26rem]`}>
         {/* 侧边栏卡片 */}
-        <div className="w-64 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
+        <div className="w-64 rounded-lg shadow-md overflow-hidden bg-zinc-50 dark:bg-zinc-950">
           <Sidebar activeFolder={activeFolder} setActiveFolder={handleNavigateFolder} activeTag={activeTag} setActiveTag={handleNavigateTag} tags={Array.from(new Set(notes.flatMap(n => n.tags)))} customFolders={customFolders} onAddFolder={openAddFolderModal} onRenameFolder={openRenameFolderModal} onDeleteFolder={handleDeleteFolder} onOpenSettings={() => setShowSettings(true)} />
         </div>
         
