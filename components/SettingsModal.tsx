@@ -36,7 +36,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onUpdateSetting
           </button>
         </div>
 
-        <div className="p-6 space-y-8 max-h-[70vh] overflow-y-auto no-scrollbar">
+        <div className="p-6 space-y-8 max-h-[70vh] overflow-y-auto scrollbar-overlay">
           {/* 外观 */}
           <section>
             <div className="flex items-center gap-2 text-zinc-400 mb-4">

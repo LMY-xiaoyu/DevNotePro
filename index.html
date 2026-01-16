@@ -19,19 +19,50 @@
       .font-mono {
         font-family: 'Fira+Code', 'Consolas', 'Microsoft YaHei', monospace;
       }
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+      /* 定义overlay滚动条样式 */
+      .scrollbar-overlay {
+        overflow-y: overlay !important;
+        overflow-x: overlay !important;
       }
+      
+      /* 保持滚动条始终存在但默认透明，鼠标悬停时显示 */
+      ::-webkit-scrollbar {
+        width: 0.2rem;
+        height: 0.2rem;
+      }
+      
       ::-webkit-scrollbar-track {
         background: transparent;
       }
+      
+      /* 默认透明，鼠标悬停时显示 */
       ::-webkit-scrollbar-thumb {
-        background: #8884;
-        border-radius: 4px;
+        background: transparent;
+        border-radius: 0.1rem;
+        transition: background 0.2s ease;
       }
+      
+      /* 鼠标悬停在滚动容器上时显示滚动条 */
+      .scrollbar-overlay:hover::-webkit-scrollbar-thumb {
+        background: #8884;
+      }
+      
+      /* 鼠标悬停在滚动条上时加深颜色 */
       ::-webkit-scrollbar-thumb:hover {
         background: #8886;
+      }
+      
+      /* Firefox 滚动条样式 */
+      @supports (scrollbar-width: thin) {
+        .scrollbar-overlay {
+          scrollbar-width: thin;
+          scrollbar-color: transparent transparent;
+          transition: scrollbar-color 0.2s ease;
+        }
+        
+        .scrollbar-overlay:hover {
+          scrollbar-color: #8884 transparent;
+        }
       }
       textarea:focus {
         outline: none;

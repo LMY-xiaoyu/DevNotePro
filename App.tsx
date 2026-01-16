@@ -813,7 +813,7 @@ const App: React.FC = () => {
   return (
     <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-900 dark:to-zinc-800`}>
       <TitleBar title="开发者笔记 Pro (DevNote Pro)" onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={() => getIpcRenderer()?.send('window-close')} accentColor={settings.accentColor} />
-      <div className={`flex flex-1 overflow-hidden p-[0.3rem] gap-[0.3rem]`}>
+      <div className={`flex flex-1 overflow-hidden p-[0.26rem] gap-[0.26rem]`}>
         {/* 侧边栏卡片 */}
         <div className="w-64 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
           <Sidebar activeFolder={activeFolder} setActiveFolder={handleNavigateFolder} activeTag={activeTag} setActiveTag={handleNavigateTag} tags={Array.from(new Set(notes.flatMap(n => n.tags)))} customFolders={customFolders} onAddFolder={openAddFolderModal} onRenameFolder={openRenameFolderModal} onDeleteFolder={handleDeleteFolder} onOpenSettings={() => setShowSettings(true)} />
@@ -827,12 +827,12 @@ const App: React.FC = () => {
         {/* 编辑区域卡片 */}
         <div className="flex-1 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
           {openNoteIds.length > 0 && (
-            <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto no-scrollbar">
+            <div className="flex items-center bg-zinc-200 dark:bg-zinc-900 border-b border-zinc-300 dark:border-zinc-800 overflow-x-auto scrollbar-overlay">
               {openNoteIds.map(id => {
                 const note = notes.find(n => n.id === id); if (!note) return null;
                 const isActive = activeNoteId === id; const isUnsaved = unsavedNoteIds.has(id);
                 return (
-                  <div key={id} onClick={() => handleSelectNote(id)} onContextMenu={(e) => handleTabContextMenu(e, id)} draggable onDragStart={(e) => e.dataTransfer.setData('text/plain', id)} onDragEnd={(e) => handleTabDragEnd(e, id)} className={`group relative flex items-center gap-2 px-4 py-2.5 min-w-[120px] max-w-[200px] text-xs cursor-pointer border-r border-zinc-200 dark:border-zinc-800 select-none transition-colors ${isActive ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-medium' : 'bg-zinc-50 dark:bg-zinc-950 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'}`}>
+                  <div key={id} onClick={() => handleSelectNote(id)} onContextMenu={(e) => handleTabContextMenu(e, id)} draggable onDragStart={(e) => e.dataTransfer.setData('text/plain', id)} onDragEnd={(e) => handleTabDragEnd(e, id)} className={`group relative flex items-center gap-2 px-4 py-2.5 min-w-[120px] max-w-[200px] text-xs cursor-pointer border-r border-zinc-300 dark:border-zinc-800 select-none transition-colors ${isActive ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-medium' : 'bg-zinc-100 dark:bg-zinc-950 text-zinc-600 hover:bg-zinc-200 dark:hover:bg-zinc-900'}`}>
                     {isActive && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ backgroundColor: settings.accentColor }} />}
                     <div className="opacity-0 group-hover:opacity-20 cursor-grab active:cursor-grabbing"><GripVertical size={10} /></div>
                     <FileText size={12} className={isActive ? 'opacity-100' : 'opacity-50'} /><span className="truncate flex-1">{note.title || '无标题'}</span>
