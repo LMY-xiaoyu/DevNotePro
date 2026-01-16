@@ -32,7 +32,6 @@ import { X, FileText, GripVertical, Plus, ArrowLeft, ArrowRight, MinusCircle, XC
 
 // 本地存储键名
 const LOCAL_STORAGE_KEY = 'devnote_pro_data_v1';
-const SETTINGS_STORAGE_KEY = 'devnote_pro_settings_v1';
 const FOLDERS_STORAGE_KEY = 'devnote_pro_folders_v1';
 
 /**
@@ -104,6 +103,15 @@ const App: React.FC = () => {
     alwaysOnTop: false,
     minimizeToTray: true,
   });
+  
+  // 在组件初始化时应用深色模式
+  useEffect(() => {
+    if (settings.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [settings.darkMode]);
 
   // settings的引用，用于在useEffect中访问最新的settings值
   const settingsRef = useRef(settings);
@@ -114,8 +122,31 @@ const App: React.FC = () => {
    * @returns ipcRenderer实例或null
    */
   const getIpcRenderer = () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      try { return (window as any).require('electron').ipcRenderer; } catch (e) { return null; }
+    console.log('Getting ipcRenderer...');
+    if (typeof window !== 'undefined') {
+      console.log('Window exists');
+      if ((window as any).require) {
+        console.log('window.require exists');
+        try {
+          const electron = (window as any).require('electron');
+          console.log('Electron loaded:', electron);
+          const ipcRenderer = electron.ipcRenderer;
+          console.log('ipcRenderer loaded:', ipcRenderer);
+          return ipcRenderer;
+        } catch (e) {
+          console.error('Failed to get ipcRenderer:', e);
+          return null;
+        }
+      } else {
+        console.log('window.require does not exist');
+        // 尝试使用window.ipcRenderer（如果直接暴露的话）
+        if ((window as any).ipcRenderer) {
+          console.log('window.ipcRenderer exists');
+          return (window as any).ipcRenderer;
+        }
+      }
+    } else {
+      console.log('Window does not exist');
     }
     return null;
   };
@@ -271,11 +302,12 @@ const App: React.FC = () => {
    * 3. 设置初始状态
    */
   useEffect(() => {
+    console.log('Initializing data...');
     const initData = async () => {
       let loadedNotes: Note[] | null = null;
       let loadedFolders: Folder[] | null = null;
       const ipcRenderer = getIpcRenderer();
-      const savedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      let savedSettings = null;
 
       if (ipcRenderer) {
         try {
@@ -294,6 +326,13 @@ const App: React.FC = () => {
             return [];
           });
           console.log('Received folders from IPC:', loadedFolders ? loadedFolders.length : 'null');
+          
+          console.log('Invoking read-settings...');
+          savedSettings = await ipcRenderer.invoke('read-settings').catch((err: any) => {
+            console.error('Failed to read settings via IPC:', err);
+            return null;
+          });
+          console.log('Received settings from IPC:', savedSettings);
 
           // 订阅笔记更新事件
           ipcRenderer.on('notes-updated', (_: any, updatedNotes: Note[]) => setNotes(updatedNotes));
@@ -481,7 +520,16 @@ const App: React.FC = () => {
       
       // 设置文件夹和设置状态
       if (loadedFolders) setCustomFolders(loadedFolders);
-      if (savedSettings) setSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
+      console.log('Final savedSettings:', savedSettings);
+      if (savedSettings) {
+        console.log('Applying saved settings:', savedSettings);
+        setSettings(prev => {
+          console.log('Previous settings:', prev);
+          const newSettings = { ...prev, ...savedSettings };
+          console.log('New settings:', newSettings);
+          return newSettings;
+        });
+      }
     };
     
     initData();
@@ -493,14 +541,40 @@ const App: React.FC = () => {
   useEffect(() => { localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(notes)); }, [notes]);
 
   /**
-   * 保存设置到本地存储，并应用深色模式
+   * 应用深色模式
    */
   useEffect(() => {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-    document.documentElement.classList.toggle('dark', settings.darkMode);
+    // 使用更可靠的方式应用深色模式类
+    if (settings.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
     const ipc = getIpcRenderer();
-    if (ipc) ipc.send('set-always-on-top', isFloatingWindow ? isFloatingOnTop : settings.alwaysOnTop);
-  }, [settings, isFloatingWindow, isFloatingOnTop]);
+    if (ipc) {
+      ipc.send('set-always-on-top', isFloatingWindow ? isFloatingOnTop : settings.alwaysOnTop);
+    }
+  }, [settings.darkMode, settings.alwaysOnTop, isFloatingWindow, isFloatingOnTop]);
+
+  /**
+   * 保存设置到文件（仅在用户主动修改设置时）
+   */
+  const saveSettings = useCallback(async () => {
+    const ipc = getIpcRenderer();
+    if (ipc) {
+      try {
+        await ipc.invoke('save-settings', settings);
+        console.log('Settings saved to file:', settings);
+      } catch (err) {
+        console.error('Failed to save settings via IPC:', err);
+      }
+    }
+  }, [settings]);
+
+  // 暴露保存设置的函数给Settings组件
+  const handleSaveSettings = useCallback(() => {
+    saveSettings();
+  }, [saveSettings]);
 
   /**
    * 处理键盘快捷键
@@ -876,7 +950,7 @@ const App: React.FC = () => {
         <button onClick={handleAddNote} style={{ backgroundColor: settings.accentColor }} className="fixed bottom-12 right-12 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all z-10 no-drag" data-tooltip="新建笔记 (Ctrl + N)"><Plus size={24} /></button>
       </div>
       <ToastContainer toasts={toasts} removeToast={removeToast} /><TooltipLayer />
-      {showSettings && <SettingsModal settings={settings} onUpdateSettings={(u) => { const next = { ...settings, ...u }; setSettings(next); getIpcRenderer()?.send('broadcast-settings', next); }} onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal settings={settings} onUpdateSettings={(u) => { const next = { ...settings, ...u }; setSettings(next); getIpcRenderer()?.send('broadcast-settings', next); }} onSaveSettings={handleSaveSettings} onClose={() => setShowSettings(false)} />}
       <InputModal isOpen={folderModal.isOpen} title={folderModal.mode === 'create' ? '新建文件夹' : '重命名文件夹'} placeholder="文件夹名称..." initialValue={folderModal.initialValue} onConfirm={handleFolderModalConfirm} onClose={() => setFolderModal({ ...folderModal, isOpen: false })} />
       <FolderSelectModal isOpen={moveNoteModal.isOpen} customFolders={customFolders} onSelect={handleConfirmMoveNote} onClose={() => setMoveNoteModal({ ...moveNoteModal, isOpen: false })} />
       <TagSelectModal isOpen={tagSelectModal.isOpen} tags={Array.from(new Set(notes.flatMap(n => n.tags)))} onSelect={handleConfirmAddTag} onClose={() => setTagSelectModal({ ...tagSelectModal, isOpen: false })} />
