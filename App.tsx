@@ -288,28 +288,18 @@ const App: React.FC = () => {
 
       if (ipcRenderer) {
         try {
-          console.log('Invoking read-notes...');
           loadedNotes = await ipcRenderer.invoke('read-notes').catch((err: any) => {
             console.error('Failed to read notes via IPC:', err);
             return [];
           });
-          console.log('Received notes from IPC:', loadedNotes ? loadedNotes.length : 'null');
-          if (loadedNotes && loadedNotes.length > 0) {
-            console.log('First note received:', loadedNotes[0]);
-          }
-          console.log('Invoking read-folders...');
           loadedFolders = await ipcRenderer.invoke('read-folders').catch((err: any) => {
             console.error('Failed to read folders via IPC:', err);
             return [];
           });
-          console.log('Received folders from IPC:', loadedFolders ? loadedFolders.length : 'null');
-          
-          console.log('Invoking read-settings...');
           savedSettings = await ipcRenderer.invoke('read-settings').catch((err: any) => {
             console.error('Failed to read settings via IPC:', err);
             return null;
           });
-          console.log('Received settings from IPC:', savedSettings);
 
           // 订阅笔记更新事件
           ipcRenderer.on('notes-updated', (_: any, updatedNotes: Note[]) => setNotes(updatedNotes));
