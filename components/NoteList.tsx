@@ -187,8 +187,8 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, note.id)}
                 className={`group relative w-full text-left p-4 border-b border-zinc-100 dark:border-zinc-900 transition-all duration-200 ease-in-out hover:bg-zinc-50 dark:hover:bg-zinc-900/50 ${
-                  selectedNoteId === note.id ? 'bg-zinc-50 dark:bg-zinc-900 border-l-4 border-l-blue-500' : 'border-l-4 border-l-transparent'
-                } ${draggedNoteId === note.id ? 'opacity-50 scale-95' : ''} ${dragOverId === note.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-blue-400' : ''}`}
+                  selectedNoteId === note.id ? 'bg-zinc-50 dark:bg-zinc-900' : ''
+                } ${draggedNoteId === note.id ? 'opacity-50 scale-95' : ''} ${dragOverId === note.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
                 onClick={() => onSelectNote(note.id)}
                 onContextMenu={(e) => handleContextMenu(e, note.id)}
               >

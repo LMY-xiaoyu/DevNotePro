@@ -811,12 +811,21 @@ const App: React.FC = () => {
   });
 
   return (
-    <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800`}>
+    <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-zinc-200 to-zinc-300 dark:from-zinc-900 dark:to-zinc-800`}>
       <TitleBar title="开发者笔记 Pro (DevNote Pro)" onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={() => getIpcRenderer()?.send('window-close')} accentColor={settings.accentColor} />
-      <div className={`flex flex-1 overflow-hidden`}>
-        <Sidebar activeFolder={activeFolder} setActiveFolder={handleNavigateFolder} activeTag={activeTag} setActiveTag={handleNavigateTag} tags={Array.from(new Set(notes.flatMap(n => n.tags)))} customFolders={customFolders} onAddFolder={openAddFolderModal} onRenameFolder={openRenameFolderModal} onDeleteFolder={handleDeleteFolder} onOpenSettings={() => setShowSettings(true)} />
-        <NoteList notes={filteredNotes} selectedNoteId={activeNoteId} onSelectNote={handleSelectNote} selectedListIds={selectedListIds} onToggleSelect={handleToggleSelect} onBatchDelete={handleBatchDelete} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onPinNote={handlePinNote} onMoveNote={handleMoveNoteRequest} onOpenWindow={handleOpenWindow} onDeleteNote={handleDeleteNote} onReorderNotes={handleReorderNotes} onAddTag={handleAddTagRequest} />
-        <div className="flex-1 relative flex flex-col bg-white dark:bg-zinc-950 min-w-0">
+      <div className={`flex flex-1 overflow-hidden p-[0.3rem] gap-[0.3rem]`}>
+        {/* 侧边栏卡片 */}
+        <div className="w-64 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
+          <Sidebar activeFolder={activeFolder} setActiveFolder={handleNavigateFolder} activeTag={activeTag} setActiveTag={handleNavigateTag} tags={Array.from(new Set(notes.flatMap(n => n.tags)))} customFolders={customFolders} onAddFolder={openAddFolderModal} onRenameFolder={openRenameFolderModal} onDeleteFolder={handleDeleteFolder} onOpenSettings={() => setShowSettings(true)} />
+        </div>
+        
+        {/* 笔记列表卡片 */}
+        <div className="w-80 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
+          <NoteList notes={filteredNotes} selectedNoteId={activeNoteId} onSelectNote={handleSelectNote} selectedListIds={selectedListIds} onToggleSelect={handleToggleSelect} onBatchDelete={handleBatchDelete} searchQuery={searchQuery} setSearchQuery={setSearchQuery} onPinNote={handlePinNote} onMoveNote={handleMoveNoteRequest} onOpenWindow={handleOpenWindow} onDeleteNote={handleDeleteNote} onReorderNotes={handleReorderNotes} onAddTag={handleAddTagRequest} />
+        </div>
+        
+        {/* 编辑区域卡片 */}
+        <div className="flex-1 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
           {openNoteIds.length > 0 && (
             <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto no-scrollbar">
               {openNoteIds.map(id => {
