@@ -471,12 +471,15 @@ const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        saveNotesToDisk(notes, activeNoteId || undefined);
+        const currentActiveNote = editingNotes.get(activeNoteId || '') || notes.find(n => n.id === activeNoteId) || null;
+        if (currentActiveNote) {
+          saveNotesToDisk(notes, currentActiveNote.id);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [notes, activeNoteId]);
+  }, [notes, activeNoteId, editingNotes]);
 
   /**
    * 导航到文件夹
