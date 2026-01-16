@@ -277,8 +277,21 @@ const App: React.FC = () => {
 
       if (ipcRenderer) {
         try {
-          loadedNotes = await ipcRenderer.invoke('read-notes');
-          loadedFolders = await ipcRenderer.invoke('read-folders');
+          console.log('Invoking read-notes...');
+          loadedNotes = await ipcRenderer.invoke('read-notes').catch((err: any) => {
+            console.error('Failed to read notes via IPC:', err);
+            return [];
+          });
+          console.log('Received notes from IPC:', loadedNotes ? loadedNotes.length : 'null');
+          if (loadedNotes && loadedNotes.length > 0) {
+            console.log('First note received:', loadedNotes[0]);
+          }
+          console.log('Invoking read-folders...');
+          loadedFolders = await ipcRenderer.invoke('read-folders').catch((err: any) => {
+            console.error('Failed to read folders via IPC:', err);
+            return [];
+          });
+          console.log('Received folders from IPC:', loadedFolders ? loadedFolders.length : 'null');
 
           // 订阅笔记更新事件
           ipcRenderer.on('notes-updated', (_: any, updatedNotes: Note[]) => setNotes(updatedNotes));
@@ -302,10 +315,19 @@ const App: React.FC = () => {
         } catch (e) { console.error(e); }
       }
 
-      // 从本地存储加载数据（如果IPC不可用）
-      if (!loadedNotes) {
+      // 从本地存储加载数据（如果IPC不可用或返回空数组）
+      if (!loadedNotes || loadedNotes.length === 0) {
         const localData = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (localData) loadedNotes = JSON.parse(localData);
+        if (localData) {
+          try {
+            const localNotes = JSON.parse(localData);
+            if (localNotes && localNotes.length > 0) {
+              loadedNotes = localNotes;
+            }
+          } catch (e) {
+            console.error('Failed to parse local notes:', e);
+          }
+        }
       }
       if (!loadedFolders) {
         const localFolders = localStorage.getItem(FOLDERS_STORAGE_KEY);
@@ -314,12 +336,22 @@ const App: React.FC = () => {
 
       // 清理空白笔记
       if (loadedNotes && loadedNotes.length > 0) {
+        console.log('Cleaning up empty notes...');
         const initialCount = loadedNotes.length;
         const cleanedNotes = loadedNotes.filter(n => {
-          const isBlank = n.title.trim() === '' && n.content.trim() === '' && (!n.tags || n.tags.length === 0);
+          // 检查笔记对象是否存在
+          if (!n) {
+            console.log('Found null/undefined note, removing...');
+            return false;
+          }
+          // 检查title和content属性是否存在，避免trim()调用错误
+          const titleIsBlank = !n.title || n.title.trim() === '';
+          const contentIsBlank = !n.content || n.content.trim() === '';
+          const tagsIsBlank = !n.tags || n.tags.length === 0;
+          const isBlank = titleIsBlank && contentIsBlank && tagsIsBlank;
           if (isBlank) {
             // 如果使用IPC，从磁盘删除空白笔记
-            if (ipcRenderer) ipcRenderer.invoke('delete-note', n.id);
+            if (ipcRenderer && n.id) ipcRenderer.invoke('delete-note', n.id);
             return false;
           }
           return true;
@@ -335,6 +367,8 @@ const App: React.FC = () => {
 
       // 设置笔记状态
       if (loadedNotes) {
+        console.log('Loaded notes from backend:', loadedNotes.length);
+        console.log('First note:', loadedNotes[0]);
         setNotes(loadedNotes);
         // 重置editingNotes状态，确保它为空，这样当用户打开笔记时，会从notes状态中读取文件中持久化的内容
         setEditingNotes(new Map());
@@ -342,6 +376,7 @@ const App: React.FC = () => {
           if (!isFloatingWindow) {
             // 在主窗口中，设置第一个笔记为激活状态
             const lastNote = loadedNotes[0];
+            console.log('Setting active note:', lastNote.id);
             setActiveNoteId(lastNote.id);
             setOpenNoteIds([lastNote.id]);
           } else if (floatingNoteId) {
@@ -402,6 +437,7 @@ const App: React.FC = () => {
           }
         } else if (!isFloatingWindow) {
           // 如果没有笔记，创建欢迎笔记
+          console.log('No notes found, creating welcome note');
           const welcome: Note = { id: 'welcome', title: '欢迎使用 DevNote Pro', content: `# 全新高性能架构\n\n- **独立文件存储**: 每个笔记现在保存为独立的 JSON 文件。\n- **图片支持**: 直接粘贴图片到编辑器。\n- **原生独立窗口**: 拖拽标签页向下，变为独立系统窗口。`, tags: ['版本更新'], folderId: 'all', language: 'markdown', createdAt: Date.now(), updatedAt: Date.now(), isArchived: false, isPinned: true };
           setNotes([welcome]);
           setActiveNoteId(welcome.id);
