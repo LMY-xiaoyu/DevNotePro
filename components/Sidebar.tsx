@@ -65,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = React.memo(({
         <h1 className="font-bold text-zinc-800 dark:text-zinc-100">开发者笔记 Pro</h1>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 space-y-6">
+      <div className="flex-1 overflow-y-auto scrollbar-hidden px-3 space-y-6">
         <div>
           <div className="flex items-center justify-between px-2 mb-2">
             <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">工作区</h2>

@@ -171,7 +171,7 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scrollbar-hidden">
         {filteredNotes.length > 0 ? (
           <div className="space-y-0">
             {filteredNotes.map((note) => {

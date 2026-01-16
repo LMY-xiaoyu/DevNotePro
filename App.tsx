@@ -827,7 +827,7 @@ const App: React.FC = () => {
         {/* 编辑区域卡片 */}
         <div className="flex-1 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
           {openNoteIds.length > 0 && (
-            <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto no-scrollbar">
+            <div className="flex items-center bg-zinc-100 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto scrollbar-hidden tab-scrollbar">
               {openNoteIds.map(id => {
                 const note = notes.find(n => n.id === id); if (!note) return null;
                 const isActive = activeNoteId === id; const isUnsaved = unsavedNoteIds.has(id);
