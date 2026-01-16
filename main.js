@@ -29,6 +29,9 @@ const getIconPath = () => {
     : path.join(__dirname, 'static', iconName);
 };
 
+// 设置文件路径
+const SETTINGS_FILE = path.join(DATA_DIR, 'setting.json');
+
 const ensureDirs = () => {
   [DATA_DIR, NOTES_DIR, IMAGES_DIR].forEach(dir => {
     if (!fs.existsSync(dir)) {
@@ -57,7 +60,7 @@ const migrateLegacyNotes = async () => {
   }
 };
 
-const BACKGROUND_COLOR = '#09090b';
+
 
 function createWindow() {
   const iconPath = getIconPath();
@@ -74,7 +77,7 @@ function createWindow() {
       contextIsolation: false,
       webSecurity: false 
     },
-    backgroundColor: BACKGROUND_COLOR
+
   });
 
   win.loadFile(path.join(__dirname, 'dist', 'index.html'));
@@ -140,7 +143,7 @@ function createFloatingWindow(noteId, isUnsaved = false) {
       contextIsolation: false,
       webSecurity: false
     },
-    backgroundColor: BACKGROUND_COLOR
+
   });
 
   win.loadFile(path.join(__dirname, 'dist', 'index.html'), { search: `?noteId=${noteId}&isUnsaved=${isUnsaved}` });
@@ -448,6 +451,52 @@ ipcMain.handle('save-folders', async (event, folders) => {
     }
     return { success: true };
   } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('read-settings', async () => {
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const data = await fsPromises.readFile(SETTINGS_FILE, 'utf-8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Failed to read settings:', err);
+  }
+  // 如果设置文件不存在或读取失败，返回默认设置
+  const defaultSettings = {
+    darkMode: true,
+    accentColor: '#3b82f6',
+    fontSize: 14,
+    transparency: 100,
+    floatingPosition: {
+      x: 100,
+      y: 100,
+      width: 700,
+      height: 500
+    },
+    alwaysOnTop: false,
+    minimizeToTray: true
+  };
+  // 将默认设置保存到文件
+  try {
+    await fsPromises.writeFile(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Failed to save default settings:', err);
+  }
+  return defaultSettings;
+});
+
+ipcMain.handle('save-settings', async (event, settings) => {
+  try {
+    await fsPromises.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
+    for (const win of windows) {
+      if (!win.isDestroyed()) win.webContents.send('settings-updated', settings);
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('Failed to save settings:', err);
     return { success: false, error: err.message };
   }
 });
