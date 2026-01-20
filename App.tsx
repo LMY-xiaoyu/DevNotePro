@@ -834,7 +834,7 @@ const App: React.FC = () => {
     };
     
     return (
-      <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800`}>
+      <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-[rgb(86_100_123_/_50%)] to-[rgb(86_100_123_/_30%)] dark:from-[rgb(86_100_123_/_20%)] dark:to-[rgb(86_100_123_/_10%)] border border-zinc-200 dark:border-zinc-800`}>
          <TitleBar title={`${finalNote.title || '独立窗口'}${unsavedNoteIds.has(finalNote.id) ? ' (未保存)' : ''}`} onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={handleFloatingWindowClose} accentColor={settings.accentColor} />
          <Editor note={finalNote} onUpdateNote={handleUpdateNote} onDeleteNote={handleDeleteNote} onSave={() => saveNotesToDisk(notes, finalNote.id)} onTogglePin={handlePinNote} viewState="floating" setViewState={handleFloatingWindowClose} accentColor={settings.accentColor} isWindowOnTop={isFloatingOnTop} onToggleWindowTop={handleToggleWindowTop} />
           <ToastContainer toasts={toasts} removeToast={removeToast} position="top-center" /><TooltipLayer />
@@ -878,7 +878,7 @@ const App: React.FC = () => {
   }, [openNoteIds]);
 
   return (
-    <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-zinc-700 dark:to-zinc-600`}>
+    <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-[rgb(86_100_123_/_50%)] to-[rgb(86_100_123_/_30%)] dark:from-[rgb(86_100_123_/_20%)] dark:to-[rgb(86_100_123_/_10%)]`}>
       <TitleBar title="开发者笔记 Pro (DevNote Pro)" onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={() => getIpcRenderer()?.send('window-close')} accentColor={settings.accentColor} />
       <div className={`flex flex-1 overflow-hidden p-[0.26rem] gap-[0.26rem]`}>
         {/* 侧边栏卡片 */}

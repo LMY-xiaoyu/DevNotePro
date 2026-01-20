@@ -28,7 +28,7 @@ const TitleBar: React.FC<TitleBarProps> = ({ onMinimize, onClose, title, accentC
   };
 
   return (
-    <div className="h-8 bg-white dark:bg-zinc-950 flex items-center justify-between select-none border-b border-zinc-100 dark:border-zinc-900 drag-handle shrink-0">
+    <div className="h-8 bg-transparent dark:bg-transparent flex items-center justify-between select-none border-b border-zinc-100 dark:border-zinc-900 drag-handle shrink-0">
       <div className="flex items-center gap-2 px-3">
         <div 
           className="w-4 h-4 rounded-sm flex items-center justify-center text-[8px] font-bold text-white"
