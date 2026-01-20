@@ -306,7 +306,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
       </div>
 
       {/* 标签栏部分 */}
-      <div className="px-6 py-2 border-b border-zinc-50 dark:border-zinc-900/50 flex items-center gap-3 overflow-x-auto scrollbar-overlay scroll-smooth shrink-0 no-drag">
+      <div className="px-6 py-2 border-b border-zinc-50 dark:border-zinc-900/50 flex flex-wrap items-center gap-3 shrink-0 no-drag">
         {/* 添加标签输入框或按钮 */}
         {isAddingTag ? (
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-900 border border-blue-500/50">
