@@ -13,7 +13,7 @@
 
 import React, { useState, useRef, useEffect, memo } from 'react';
 // 导入图标组件
-import { Trash2, Pin, PinOff, Tag as TagIcon, ExternalLink, Hash as HashIcon, Plus as PlusIcon, Save, X, ArrowUpToLine } from 'lucide-react';
+import { Trash2, Pin, PinOff, Tag as TagIcon, ExternalLink, Hash as HashIcon, Plus as PlusIcon, Save, ArrowUpToLine } from 'lucide-react';
 // 导入代码编辑器组件
 import Editor from 'react-simple-code-editor';
 // 导入语法高亮库
@@ -275,7 +275,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
           {/* 保存按钮 */}
           <button onClick={onSave} data-tooltip="保存 (Ctrl + S)" className="p-2 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"><Save size={18} /></button>
           {/* 置顶/取消置顶按钮 */}
-          <button onClick={handleTogglePin} data-tooltip={note.isPinned ? "取消笔记置顶" : "置顶笔记"} className={`p-2 rounded-lg transition-colors ${note.isPinned ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}>{note.isPinned ? <Pin size={18} fill="currentColor" /> : <PinOff size={18} />}</button>
+          {viewState !== 'floating' && (<button onClick={handleTogglePin} data-tooltip={note.isPinned ? "取消笔记置顶" : "置顶笔记"} className={`p-2 rounded-lg transition-colors ${note.isPinned ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}><ArrowUpToLine size={18} /></button>)}
           {/* 窗口置顶按钮（仅在浮动窗口显示） */}
           {viewState === 'floating' && (
             <button 
@@ -283,17 +283,17 @@ const EditorComponent: React.FC<EditorProps> = memo(({
               data-tooltip={isWindowOnTop ? "取消窗口置顶" : "窗口置顶"} 
               className={`p-2 rounded-lg transition-colors ${isWindowOnTop ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800'}`}
             >
-              <ArrowUpToLine size={18} />
+              {isWindowOnTop ? <Pin size={18} fill="currentColor" /> : <PinOff size={18} />}
             </button>
           )}
           {/* 分离/关闭窗口按钮 */}
-          <button 
+          {viewState === 'standard' && (<button 
             onClick={() => setViewState(viewState === 'standard' ? 'floating' : 'standard')} 
             data-tooltip={viewState === 'standard' ? '分离为独立窗口' : '关闭此窗口'} 
             className="p-2 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition-colors"
           >
-            {viewState === 'standard' ? <ExternalLink size={18} /> : <X size={18} />}
-          </button>
+            <ExternalLink size={18} />
+          </button>)}
           {/* 删除笔记按钮 */}
           <button 
             onClick={() => onDeleteNote(note.id)} 
