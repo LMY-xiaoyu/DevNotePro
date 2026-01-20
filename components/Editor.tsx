@@ -345,7 +345,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
       </div>
 
       {/* 编辑器主体部分 */}
-      <div className="flex-1 relative overflow-auto scrollbar-overlay editor-container no-drag" onPaste={handlePaste}>
+      <div className="flex-1 relative overflow-auto scrollbar-overlay editor-container no-drag" onPaste={handlePaste} onDrop={(e) => e.preventDefault()} onDragOver={(e) => e.preventDefault()}>
         <Editor
           value={note.content}
           onValueChange={handleChange}
