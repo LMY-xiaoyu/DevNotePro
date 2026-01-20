@@ -894,12 +894,12 @@ const App: React.FC = () => {
         {/* 编辑区域卡片 */}
         <div className="flex-1 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
           {openNoteIds.length > 0 && (
-            <div ref={tabHeaderRef} className="flex items-center bg-zinc-100 dark:bg-zinc-950 overflow-x-auto scrollbar-hidden tab-scrollbar">
+            <div ref={tabHeaderRef} className="flex items-center bg-zinc-100 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto scrollbar-hidden tab-scrollbar">
               {openNoteIds.map(id => {
                 const note = notes.find(n => n.id === id); if (!note) return null;
                 const isActive = activeNoteId === id; const isUnsaved = unsavedNoteIds.has(id);
                 return (
-                  <div key={id} onClick={() => handleSelectNote(id)} onContextMenu={(e) => handleTabContextMenu(e, id)} draggable onDragStart={(e) => e.dataTransfer.setData('application/devnote-tab', id)} onDragEnd={(e) => handleTabDragEnd(e, id)} className={`group relative flex items-center gap-2 px-4 py-2.5 min-w-[120px] max-w-[200px] text-xs cursor-pointer border-r border-zinc-300 dark:border-zinc-800 select-none transition-colors ${isActive ? 'bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-medium' : 'bg-zinc-400 dark:bg-[#32333b] text-zinc-700 dark:text-zinc-400 hover:bg-zinc-500 dark:hover:bg-zinc-700'}`}>
+                  <div key={id} onClick={() => handleSelectNote(id)} onContextMenu={(e) => handleTabContextMenu(e, id)} draggable onDragStart={(e) => e.dataTransfer.setData('application/devnote-tab', id)} onDragEnd={(e) => handleTabDragEnd(e, id)} className={`group relative flex items-center gap-2 px-4 py-2.5 min-w-[120px] max-w-[200px] text-xs cursor-pointer border-r border-zinc-300 dark:border-zinc-800 select-none transition-colors ${isActive ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-medium border-b-0' : 'bg-zinc-400 dark:bg-[#32333b] text-zinc-700 dark:text-zinc-400 hover:bg-zinc-500 dark:hover:bg-zinc-700'}`}>
                     {isActive && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ backgroundColor: settings.accentColor }} />}
                     <div className="opacity-0 group-hover:opacity-20 cursor-grab active:cursor-grabbing"><GripVertical size={10} /></div>
                     <FileText size={12} className={isActive ? 'opacity-100' : 'opacity-50'} /><span className="truncate flex-1">{note.title || '无标题'}</span>
