@@ -208,7 +208,7 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
 
                 <div className="flex items-center gap-2 mb-1 pr-6">
                   {note.isPinned && <ArrowUpToLine size={12} className="text-blue-500 shrink-0" />}
-                  <h3 className={`text-sm font-semibold truncate ${selectedNoteId === note.id ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-800 dark:text-zinc-100'} ${!note.title.trim() && 'italic opacity-80'}`}>
+                  <h3 className={`text-sm font-semibold truncate ${selectedNoteId === note.id ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-800 dark:text-zinc-100'}`}>
                     {displayTitle}
                   </h3>
                 </div>
