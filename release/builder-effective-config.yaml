@@ -1,0 +1,15 @@
+directories:
+  output: release
+  buildResources: build
+appId: com.devnote.pro
+productName: DevNotePro
+files:
+  - filter:
+      - dist/**/*
+      - static/**/*
+      - main.js
+      - package.json
+win:
+  target: portable
+  icon: static/app.png
+electronVersion: 28.3.3
