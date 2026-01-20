@@ -835,7 +835,7 @@ const App: React.FC = () => {
     
     return (
       <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-[rgb(86_100_123_/_50%)] to-[rgb(86_100_123_/_30%)] dark:from-[rgb(86_100_123_/_20%)] dark:to-[rgb(86_100_123_/_10%)] border border-zinc-200 dark:border-zinc-800`}>
-         <TitleBar title={`${finalNote.title || '独立窗口'}${unsavedNoteIds.has(finalNote.id) ? ' (未保存)' : ''}`} onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={handleFloatingWindowClose} accentColor={settings.accentColor} />
+         <TitleBar title={`${finalNote.title || '独立窗口'}${unsavedNoteIds.has(finalNote.id) ? ' (未保存)' : ''}`} onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={handleFloatingWindowClose} />
          <Editor note={finalNote} onUpdateNote={handleUpdateNote} onDeleteNote={handleDeleteNote} onSave={() => saveNotesToDisk(notes, finalNote.id)} onTogglePin={handlePinNote} viewState="floating" setViewState={handleFloatingWindowClose} isWindowOnTop={isFloatingOnTop} onToggleWindowTop={handleToggleWindowTop} settings={settings} />
           <ToastContainer toasts={toasts} removeToast={removeToast} position="top-center" /><TooltipLayer />
           <ConfirmationModal isOpen={confirmation.isOpen} title={confirmation.title} content={confirmation.content} isDanger={confirmation.isDanger} onConfirm={confirmation.onConfirm} onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))} />
@@ -879,7 +879,7 @@ const App: React.FC = () => {
 
   return (
     <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-[rgb(86_100_123_/_50%)] to-[rgb(86_100_123_/_30%)] dark:from-[rgb(86_100_123_/_20%)] dark:to-[rgb(86_100_123_/_10%)]`}>
-      <TitleBar title="DevNote Pro" onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={() => getIpcRenderer()?.send('window-close')} accentColor={settings.accentColor} />
+      <TitleBar title="DevNote Pro" onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={() => getIpcRenderer()?.send('window-close')} />
       <div className={`flex flex-1 overflow-hidden p-[0.26rem] gap-[0.26rem]`}>
         {/* 侧边栏卡片 */}
         <div className="w-64 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
