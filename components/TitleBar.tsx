@@ -1,14 +1,14 @@
 import React from 'react';
 import { Minus, Square, X } from 'lucide-react';
+import appIcon from '../static/app.png';
 
 interface TitleBarProps {
   onMinimize: () => void;
   onClose: () => void;
   title: string;
-  accentColor: string;
 }
 
-const TitleBar: React.FC<TitleBarProps> = ({ onMinimize, onClose, title, accentColor }) => {
+const TitleBar: React.FC<TitleBarProps> = ({ onMinimize, onClose, title }) => {
   const getIpcRenderer = () => {
     if (typeof window !== 'undefined' && (window as any).require) {
       try {
@@ -30,12 +30,11 @@ const TitleBar: React.FC<TitleBarProps> = ({ onMinimize, onClose, title, accentC
   return (
     <div className="h-8 bg-transparent dark:bg-transparent flex items-center justify-between select-none border-b border-zinc-100 dark:border-zinc-900 drag-handle shrink-0">
       <div className="flex items-center gap-2 px-3">
-        <div 
-          className="w-4 h-4 rounded-sm flex items-center justify-center text-[8px] font-bold text-white"
-          style={{ backgroundColor: accentColor }}
-        >
-          D
-        </div>
+        <img 
+          src={appIcon} 
+          alt="App Icon" 
+          className="w-4 h-4 rounded-sm object-cover"
+        />
         <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 truncate max-w-[400px]">{title}</span>
       </div>
       
