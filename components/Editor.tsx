@@ -49,9 +49,9 @@ import { getTagStyle } from '../utils';
  * - onPinNote: 置顶/取消置顶笔记的回调函数
  * - viewState: 视图状态，'standard'表示标准视图，'floating'表示浮动窗口
  * - setViewState: 设置视图状态的回调函数
- * - accentColor: 强调色
  * - isWindowOnTop: 窗口是否置顶
  * - onToggleWindowTop: 切换窗口置顶状态的回调函数
+ * - settings: 应用设置对象
  */
 interface EditorProps {
   note: Note | null;
@@ -61,9 +61,9 @@ interface EditorProps {
   onTogglePin: (id: string) => void;
   viewState: 'standard' | 'floating';
   setViewState: (v: 'standard' | 'floating') => void;
-  accentColor: string;
   isWindowOnTop: boolean;
   onToggleWindowTop: () => void;
+  settings: any;
 }
 
 /**
@@ -80,7 +80,8 @@ const EditorComponent: React.FC<EditorProps> = memo(({
   viewState, 
   setViewState, 
   isWindowOnTop,
-  onToggleWindowTop
+  onToggleWindowTop,
+  settings
 }) => {
   // 状态管理
   // isAddingTag: 是否正在添加标签
@@ -350,11 +351,11 @@ const EditorComponent: React.FC<EditorProps> = memo(({
           onValueChange={handleChange}
           highlight={highlight}
           padding={32}
-          className="font-mono text-sm leading-relaxed no-drag"
+          className="font-mono leading-relaxed no-drag"
           textareaClassName="focus:outline-none no-drag"
           style={{
             fontFamily: '"Fira Code", "Consolas", monospace',
-            fontSize: 14,
+            fontSize: `${settings.fontSize}px`,
             minHeight: '100%',
           }}
         />

@@ -117,7 +117,7 @@ function createWindow() {
   return win;
 }
 
-function createFloatingWindow(noteId, isUnsaved = false) {
+async function createFloatingWindow(noteId, isUnsaved = false) {
   // 检查是否已经存在该笔记ID对应的浮动窗口
   if (floatingWindows.has(noteId)) {
     const existingWin = floatingWindows.get(noteId);
@@ -127,6 +127,26 @@ function createFloatingWindow(noteId, isUnsaved = false) {
       existingWin.focus();
       return;
     }
+  }
+
+  // 读取设置
+  let settings;
+  try {
+    if (fs.existsSync(SETTINGS_FILE)) {
+      const data = await fsPromises.readFile(SETTINGS_FILE, 'utf-8');
+      settings = JSON.parse(data);
+    } else {
+      // 使用默认设置
+      settings = {
+        transparency: 100
+      };
+    }
+  } catch (err) {
+    console.error('Failed to read settings:', err);
+    // 使用默认设置
+    settings = {
+      transparency: 100
+    };
   }
 
   const iconPath = getIconPath();
@@ -143,7 +163,8 @@ function createFloatingWindow(noteId, isUnsaved = false) {
       contextIsolation: false,
       webSecurity: false
     },
-
+    // 应用透明度设置
+    opacity: settings.transparency / 100
   });
 
   win.loadFile(path.join(__dirname, 'dist', 'index.html'), { search: `?noteId=${noteId}&isUnsaved=${isUnsaved}` });
@@ -190,7 +211,7 @@ async function handleNewNoteFromTray() {
   try {
     const encodedNote = encodeNote(newNote);
     await fsPromises.writeFile(path.join(NOTES_DIR, `${newId}.json`), JSON.stringify(encodedNote, null, 2), 'utf-8');
-    createFloatingWindow(newId);
+    await createFloatingWindow(newId);
     // Broadcast to main window if it exists to refresh list
     if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('note-updated-single', newNote);
@@ -296,7 +317,7 @@ ipcMain.handle('open-note-window', async (event, noteData) => {
   await fsPromises.writeFile(notePath, JSON.stringify(encodedNote, null, 2), 'utf-8');
   
   // 创建浮动窗口，传递isUnsaved状态
-  createFloatingWindow(noteId, isUnsaved);
+  await createFloatingWindow(noteId, isUnsaved);
 });
 
 // --- File System IPC ---

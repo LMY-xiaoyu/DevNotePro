@@ -1,8 +1,8 @@
 {
   "darkMode": true,
   "accentColor": "#3b82f6",
-  "fontSize": 15,
-  "transparency": 42,
+  "fontSize": 14,
+  "transparency": 100,
   "floatingPosition": {
     "x": 100,
     "y": 100,
