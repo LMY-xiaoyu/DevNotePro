@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Search, Pin, Calendar, Trash2, PinOff, ExternalLink, FolderInput, Plus } from 'lucide-react';
+import { Search, ArrowUpToLine, Calendar, Trash2, PinOff, ExternalLink, FolderInput, Plus } from 'lucide-react';
 import { Note } from '../types';
 import ContextMenu, { MenuItem } from './ContextMenu';
 import { getTagStyle } from '../utils';
@@ -58,7 +58,7 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
     return [
       {
         label: note.isPinned ? '取消置顶' : '置顶笔记',
-        icon: note.isPinned ? <PinOff size={14} /> : <Pin size={14} />,
+        icon: note.isPinned ? <PinOff size={14} /> : <ArrowUpToLine size={14} />,
         action: () => onPinNote(noteId)
       },
       {
@@ -207,7 +207,7 @@ const NoteList: React.FC<NoteListProps> = React.memo(({
                 </div>
 
                 <div className="flex items-center gap-2 mb-1 pr-6">
-                  {note.isPinned && <Pin size={12} className="text-blue-500 shrink-0" fill="currentColor" />}
+                  {note.isPinned && <ArrowUpToLine size={12} className="text-blue-500 shrink-0" />}
                   <h3 className={`text-sm font-semibold truncate ${selectedNoteId === note.id ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-800 dark:text-zinc-100'} ${!note.title.trim() && 'italic opacity-80'}`}>
                     {displayTitle}
                   </h3>
