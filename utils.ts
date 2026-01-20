@@ -22,8 +22,8 @@ export const getTagStyle = (tag: string, isActive: boolean = false) => {
   const base = `inline-flex items-center justify-center px-2 py-0.5 rounded-md text-[10px] font-medium transition-all select-none border whitespace-nowrap ${colorClass}`;
   
   if (isActive) {
-    // Active state with a ring for focus
-    return `${base} ring-1 ring-offset-1 ring-zinc-400 dark:ring-zinc-500 scale-105 font-bold shadow-sm`;
+    // Active state with highlight instead of ring
+    return `${base} opacity-100 scale-105 font-bold shadow-md`;
   }
   
   return `${base} hover:opacity-80`;
