@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Sun, Palette, Type, Monitor } from 'lucide-react';
+import { X, Palette, Type } from 'lucide-react';
 import { Settings } from '../types';
 import { ACCENT_COLORS } from '../constants';
 
@@ -38,8 +38,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onUpdateSetting
         </div>
 
         <div className="p-6 space-y-8 max-h-[70vh] overflow-y-auto scrollbar-overlay">
-          {/* 外观 */}
-          <section>
+          {/* 外观 - 暂时隐藏深色模式 */}
+          {/* <section>
             <div className="flex items-center gap-2 text-zinc-400 mb-4">
               <Sun size={14} />
               <h3 className="text-xs font-bold uppercase tracking-wider">外观展示</h3>
@@ -53,10 +53,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onUpdateSetting
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${localSettings.darkMode ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
-          </section>
+          </section> */}
 
-          {/* 系统 */}
-          <section>
+          {/* 系统 - 暂时隐藏关闭窗口到系统托盘 */}
+          {/* <section>
             <div className="flex items-center gap-2 text-zinc-400 mb-4">
               <Monitor size={14} />
               <h3 className="text-xs font-bold uppercase tracking-wider">系统集成</h3>
@@ -70,7 +70,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ settings, onUpdateSetting
                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${localSettings.minimizeToTray ? 'translate-x-7' : 'translate-x-1'}`} />
               </button>
             </div>
-          </section>
+          </section> */}
 
           {/* 主题色 */}
           <section>

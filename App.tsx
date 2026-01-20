@@ -836,7 +836,7 @@ const App: React.FC = () => {
     return (
       <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-[rgb(86_100_123_/_50%)] to-[rgb(86_100_123_/_30%)] dark:from-[rgb(86_100_123_/_20%)] dark:to-[rgb(86_100_123_/_10%)] border border-zinc-200 dark:border-zinc-800`}>
          <TitleBar title={`${finalNote.title || '独立窗口'}${unsavedNoteIds.has(finalNote.id) ? ' (未保存)' : ''}`} onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={handleFloatingWindowClose} accentColor={settings.accentColor} />
-         <Editor note={finalNote} onUpdateNote={handleUpdateNote} onDeleteNote={handleDeleteNote} onSave={() => saveNotesToDisk(notes, finalNote.id)} onTogglePin={handlePinNote} viewState="floating" setViewState={handleFloatingWindowClose} accentColor={settings.accentColor} isWindowOnTop={isFloatingOnTop} onToggleWindowTop={handleToggleWindowTop} />
+         <Editor note={finalNote} onUpdateNote={handleUpdateNote} onDeleteNote={handleDeleteNote} onSave={() => saveNotesToDisk(notes, finalNote.id)} onTogglePin={handlePinNote} viewState="floating" setViewState={handleFloatingWindowClose} isWindowOnTop={isFloatingOnTop} onToggleWindowTop={handleToggleWindowTop} settings={settings} />
           <ToastContainer toasts={toasts} removeToast={removeToast} position="top-center" /><TooltipLayer />
           <ConfirmationModal isOpen={confirmation.isOpen} title={confirmation.title} content={confirmation.content} isDanger={confirmation.isDanger} onConfirm={confirmation.onConfirm} onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))} />
       </div>
@@ -911,7 +911,7 @@ const App: React.FC = () => {
             </div>
           )}
           {activeNote ? (
-            <Editor note={activeNote} onUpdateNote={handleUpdateNote} onDeleteNote={handleDeleteNote} onSave={() => saveNotesToDisk(notes, activeNote.id)} onTogglePin={handlePinNote} viewState="standard" setViewState={() => { if (activeNoteId) handleOpenWindow(activeNoteId); }} accentColor={settings.accentColor} isWindowOnTop={settings.alwaysOnTop} onToggleWindowTop={handleToggleWindowTop} />
+            <Editor note={activeNote} onUpdateNote={handleUpdateNote} onDeleteNote={handleDeleteNote} onSave={() => saveNotesToDisk(notes, activeNote.id)} onTogglePin={handlePinNote} viewState="standard" setViewState={() => { if (activeNoteId) handleOpenWindow(activeNoteId); }} isWindowOnTop={settings.alwaysOnTop} onToggleWindowTop={handleToggleWindowTop} settings={settings} />
           ) : ( <div className="flex-1 flex items-center justify-center text-zinc-300 dark:text-zinc-700 font-bold"><p className="text-sm">选择或创建笔记</p></div> )}
         </div>
         <button onClick={handleAddNote} style={{ backgroundColor: settings.accentColor }} className="fixed bottom-12 right-12 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all z-10 no-drag" data-tooltip="新建笔记 (Ctrl + N)"><Plus size={24} /></button>
