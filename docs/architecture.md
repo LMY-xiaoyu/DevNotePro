@@ -26,6 +26,11 @@ DevNote Pro 按“主进程能力、前端业务状态、界面组件”拆分�
 
 `hooks/` 下放置可复用的业务和交互模块：
 
+- `useAppBootstrap`：应用启动加载、IPC 订阅、欢迎笔记和浮动窗口初始数据。
+- `useNoteActions`：笔记更新、删除、批量删除、置顶、移动、标签和独立窗口动作。
+- `useFolderActions`：文件夹创建、重命名、删除和文件夹弹窗状态。
+- `useTabActions`：标签页选择、关闭、右键菜单和拖拽分离窗口。
+- `useSettingsSync`：深色模式、窗口置顶状态同步和设置保存。
 - `useNotePersistence`：笔记和文件夹保存策略，统一处理 IPC 与 localStorage 降级。
 - `useToast`：全局提示队列。
 - `useConfirmation`：确认弹窗状态。
@@ -53,12 +58,21 @@ DevNote Pro 按“主进程能力、前端业务状态、界面组件”拆分�
 
 `App.tsx` 负责装配：
 
-- 组合 hooks、服务和组件。
-- 保留当前页面布局。
-- 处理跨模块流程，例如移动笔记、归档、打开浮动窗口。
+- 持有应用顶层状态。
+- 组合 hooks、服务和视图。
+- 连接主窗口、浮动窗口、弹窗层和上下文菜单。
+
+### 视图层
+
+`views/` 放置页面级组合组件：
+
+- `MainWorkspace`：主窗口三栏布局。
+- `FloatingWorkspace`：独立笔记窗口布局。
+- `EditorTabs`：编辑器标签栏。
 
 ## 后续演进方向
 
-- 将笔记列表、标签页、文件夹操作继续拆为 `useNoteActions`、`useFolderActions`、`useTabActions`。
-- 将 `App.tsx` 的主窗口和浮动窗口渲染拆成 `MainWorkspace` 与 `FloatingWorkspace`。
+- 继续拆 `main.js` 主进程：窗口管理、托盘、存储、IPC handler 分文件。
+- 清理或重构 `contexts/NoteContext.tsx`，避免和 `App.tsx` 形成两套状态模型。
+- 将 `Editor` 的图片粘贴保存逻辑抽到专用 hook 或 service。
 - 增加仓储层测试，覆盖保存、移动、归档、删除等高风险流程。
