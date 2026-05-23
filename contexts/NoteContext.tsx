@@ -102,8 +102,10 @@ export const NoteProvider: React.FC<NoteProviderProps> = ({ children }) => {
   useEffect(() => { settingsRef.current = settings; }, [settings]);
 
   const getIpcRenderer = () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      try { return (window as any).require('electron').ipcRenderer; } catch (e) { return null; }
+    const wp = (window as any);
+    if (wp && wp.ipcRenderer) return wp.ipcRenderer;
+    if (wp && wp.require) {
+      try { return wp.require('electron').ipcRenderer; } catch (e) { return null; }
     }
     return null;
   };

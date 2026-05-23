@@ -1,5 +1,5 @@
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
@@ -14,9 +14,8 @@ let isQuitting = false;
 const floatingWindows = new Map();
 
 // --- Storage Configuration ---
-const DATA_DIR = app.isPackaged
-  ? path.join(path.dirname(process.execPath), 'data')
-  : path.join(__dirname, 'data');
+// Use platform-appropriate user data directory for cross-platform compatibility
+const DATA_DIR = app.getPath('userData');
 
 const NOTES_DIR = path.join(DATA_DIR, 'Notes');
 const IMAGES_DIR = path.join(DATA_DIR, 'Images');
@@ -60,7 +59,33 @@ const ensureDirs = () => {
 };
 ensureDirs();
 
+// Atomic JSON write helper: write to a temp file then rename for safer saves
+async function writeJsonAtomic(filePath, data) {
+  const tmpPath = filePath + '.tmp';
+  await fsPromises.writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+  await fsPromises.rename(tmpPath, filePath);
+}
+
+function isValidNoteId(noteId) {
+  return typeof noteId === 'string' && /^[a-zA-Z0-9_-]+$/.test(noteId);
+}
+
+function assertValidNoteId(noteId) {
+  if (!isValidNoteId(noteId)) {
+    throw new Error('Invalid note id');
+  }
+}
+
+
 // --- 防止重复启动逻辑 ---
+// Set Windows AppUserModelID for proper taskbar/dock behavior
+if (process.platform === 'win32') {
+  try {
+    app.setAppUserModelId('com.devnote.pro');
+  } catch (e) {
+    console.error('Failed to set AppUserModelId:', e);
+  }
+}
 
 // 使用Electron的单实例锁机制
 const gotTheLock = app.requestSingleInstanceLock();
@@ -88,7 +113,7 @@ const migrateLegacyNotes = async () => {
         const data = await fsPromises.readFile(LEGACY_NOTES_FILE, 'utf-8');
         const notes = JSON.parse(data);
         const writePromises = notes.map(note => 
-          fsPromises.writeFile(path.join(NOTES_DIR, `${note.id}.json`), JSON.stringify(note, null, 2), 'utf-8')
+          writeJsonAtomic(path.join(NOTES_DIR, `${note.id}.json`), note)
         );
         await Promise.all(writePromises);
         await fsPromises.rename(LEGACY_NOTES_FILE, `${LEGACY_NOTES_FILE}.bak`);
@@ -112,9 +137,10 @@ function createWindow() {
     show: false,
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false 
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+      preload: path.join(__dirname, 'preload.js')
     },
 
   });
@@ -198,10 +224,13 @@ async function createFloatingWindow(noteId, isUnsaved = false) {
     show: false,
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+      preload: path.join(__dirname, 'preload.js')
     },
+    // Note: preload exposes a minimal ipcRenderer to renderer processes
+
     // 应用透明度设置
     opacity: settings.transparency / 100
   });
@@ -249,7 +278,7 @@ async function handleNewNoteFromTray() {
   
   try {
     const encodedNote = encodeNote(newNote);
-    await fsPromises.writeFile(path.join(NOTES_DIR, `${newId}.json`), JSON.stringify(encodedNote, null, 2), 'utf-8');
+    await writeJsonAtomic(path.join(NOTES_DIR, `${newId}.json`), encodedNote);
     await createFloatingWindow(newId);
     // Broadcast to main window if it exists to refresh list
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -263,61 +292,75 @@ async function handleNewNoteFromTray() {
 function createTray() {
   try {
     const iconPath = getIconPath();
-    
-    // 只有在图标路径存在时才创建托盘
-    if (iconPath && fs.existsSync(iconPath)) {
-      tray = new Tray(iconPath);
-      
-      const contextMenu = Menu.buildFromTemplate([
-        { label: '显示应用', click: () => {
-            if (!mainWindow) createWindow();
-            else {
-              mainWindow.show();
-              mainWindow.focus();
-            }
-        }},
-        { type: 'separator' },
-        { label: '新建笔记', click: () => { 
-            handleNewNoteFromTray();
-        }},
-        { label: '设置中心', click: () => { 
-            if (!mainWindow) createWindow();
-            mainWindow.show();
-            mainWindow.focus();
-            // Small delay ensures the window is ready and focused before triggering modal
-            setTimeout(() => {
-              mainWindow.webContents.send('open-settings'); 
-            }, 100);
-        }},
-        { type: 'separator' },
-        { label: '退出程序', click: () => { 
-            isQuitting = true; 
-            app.quit(); 
-        }}
-      ]);
+    let trayIcon = null;
 
-      tray.setContextMenu(contextMenu);
-      tray.setToolTip('DevNote Pro');
-      tray.on('double-click', () => {
+    // prefer explicit nativeImage so we can mark template images on macOS
+    if (iconPath && fs.existsSync(iconPath)) {
+      try {
+        trayIcon = nativeImage.createFromPath(iconPath);
+        if (process.platform === 'darwin' && trayIcon) trayIcon.setTemplateImage(true);
+      } catch (e) {
+        console.error('Failed to create nativeImage from iconPath:', e);
+      }
+    } else {
+      const fallback = path.join(__dirname, 'static', 'app.png');
+      if (fs.existsSync(fallback)) {
+        try {
+          trayIcon = nativeImage.createFromPath(fallback);
+          if (process.platform === 'darwin' && trayIcon) trayIcon.setTemplateImage(true);
+        } catch (e) {
+          console.error('Failed to create nativeImage from fallback icon:', e);
+        }
+      }
+    }
+
+    // On Linux, creating a tray without a valid icon can fail in some desktop environments
+    if (!trayIcon && process.platform === 'linux') {
+      console.warn('Tray icon not found; skipping tray creation on Linux to avoid issues.');
+      return;
+    }
+
+    tray = new Tray(trayIcon || undefined);
+
+    const contextMenu = Menu.buildFromTemplate([
+      { label: '显示应用', click: () => {
           if (!mainWindow) createWindow();
           else {
             mainWindow.show();
             mainWindow.focus();
           }
-      });
-      
-      console.log('Tray created successfully with icon:', iconPath);
-    } else {
-      console.error('Tray creation failed: No valid icon path found');
-      
-      // 如果没有找到图标，尝试使用默认的系统托盘图标
-      try {
-        tray = new Tray(path.join(__dirname, 'static', 'app.png'));
-        console.log('Tray created with default icon');
-      } catch (e) {
-        console.error('Tray creation failed with default icon:', e);
+      }},
+      { type: 'separator' },
+      { label: '新建笔记', click: () => { 
+          handleNewNoteFromTray();
+      }},
+      { label: '设置中心', click: () => { 
+          if (!mainWindow) createWindow();
+          mainWindow.show();
+          mainWindow.focus();
+          setTimeout(() => {
+            mainWindow.webContents.send('open-settings'); 
+          }, 100);
+      }},
+      { type: 'separator' },
+      // On macOS, use '退出程序' but on other platforms this will quit as well
+      { label: '退出程序', click: () => { 
+          isQuitting = true; 
+          app.quit(); 
+      }}
+    ]);
+
+    tray.setContextMenu(contextMenu);
+    tray.setToolTip('DevNote Pro');
+    tray.on('double-click', () => {
+      if (!mainWindow) createWindow();
+      else {
+        mainWindow.show();
+        mainWindow.focus();
       }
-    }
+    });
+
+    console.log('Tray created successfully');
   } catch (e) {
     console.error('Tray creation failed:', e);
   }
@@ -360,6 +403,7 @@ ipcMain.on('broadcast-settings', (event, settings) => {
 
 ipcMain.handle('open-note-window', async (event, noteData) => {
   const noteId = noteData.id;
+  assertValidNoteId(noteId);
   // 确保笔记文件已经保存
   const notePath = path.join(NOTES_DIR, `${noteId}.json`);
   
@@ -369,7 +413,7 @@ ipcMain.handle('open-note-window', async (event, noteData) => {
   const { isUnsaved, ...noteWithoutUnsaved } = noteData;
   // 对笔记数据进行base64编码，确保特殊字符不会导致文件损坏
   const encodedNote = encodeNote(noteWithoutUnsaved);
-  await fsPromises.writeFile(notePath, JSON.stringify(encodedNote, null, 2), 'utf-8');
+  await writeJsonAtomic(notePath, encodedNote);
   
   // 创建浮动窗口，传递isUnsaved状态
   await createFloatingWindow(noteId, isUnsaved);
@@ -424,6 +468,10 @@ ipcMain.handle('read-notes', async () => {
         const content = await fsPromises.readFile(path.join(NOTES_DIR, file), 'utf-8');
         const note = JSON.parse(content);
         const decodedNote = decodeNote(note);
+        if (!isValidNoteId(decodedNote.id)) {
+          console.warn('Skipping note with invalid id:', file);
+          return null;
+        }
         console.log('Read note:', file, decodedNote.id);
         return decodedNote;
       } catch (e) {
@@ -442,6 +490,7 @@ ipcMain.handle('read-notes', async () => {
 
 ipcMain.handle('read-note', async (event, noteId) => {
   try {
+    assertValidNoteId(noteId);
     const notePath = path.join(NOTES_DIR, `${noteId}.json`);
     if (fs.existsSync(notePath)) {
       const content = await fsPromises.readFile(notePath, 'utf-8');
@@ -456,9 +505,10 @@ ipcMain.handle('read-note', async (event, noteId) => {
 
 ipcMain.handle('save-note', async (event, note) => {
   try {
+    assertValidNoteId(note && note.id);
     const encodedNote = encodeNote(note);
     const filePath = path.join(NOTES_DIR, `${note.id}.json`);
-    await fsPromises.writeFile(filePath, JSON.stringify(encodedNote, null, 2), 'utf-8');
+    await writeJsonAtomic(filePath, encodedNote);
     for (const win of windows) {
       if (!win.isDestroyed()) win.webContents.send('note-updated-single', note);
     }
@@ -470,9 +520,9 @@ ipcMain.handle('save-note', async (event, note) => {
 
 ipcMain.handle('save-notes', async (event, notes) => {
   try {
-    const writePromises = notes.map(note => {
+    const writePromises = notes.filter(note => isValidNoteId(note && note.id)).map(note => {
       const encodedNote = encodeNote(note);
-      return fsPromises.writeFile(path.join(NOTES_DIR, `${note.id}.json`), JSON.stringify(encodedNote, null, 2), 'utf-8');
+      return writeJsonAtomic(path.join(NOTES_DIR, `${note.id}.json`), encodedNote);
     });
     await Promise.all(writePromises);
     for (const win of windows) {
@@ -486,6 +536,7 @@ ipcMain.handle('save-notes', async (event, notes) => {
 
 ipcMain.handle('delete-note', async (event, noteId) => {
   try {
+    assertValidNoteId(noteId);
     const filePath = path.join(NOTES_DIR, `${noteId}.json`);
     if (fs.existsSync(filePath)) await fsPromises.unlink(filePath);
     // 广播笔记删除事件到所有窗口
@@ -521,7 +572,7 @@ ipcMain.handle('read-folders', async () => {
 
 ipcMain.handle('save-folders', async (event, folders) => {
   try {
-    await fsPromises.writeFile(FOLDERS_FILE, JSON.stringify(folders, null, 2), 'utf-8');
+    await writeJsonAtomic(FOLDERS_FILE, folders);
     for (const win of windows) {
       if (!win.isDestroyed()) win.webContents.send('folders-updated', folders);
     }
@@ -557,7 +608,7 @@ ipcMain.handle('read-settings', async () => {
   };
   // 将默认设置保存到文件
   try {
-    await fsPromises.writeFile(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2), 'utf-8');
+    await writeJsonAtomic(SETTINGS_FILE, defaultSettings);
   } catch (err) {
     console.error('Failed to save default settings:', err);
   }
@@ -566,7 +617,7 @@ ipcMain.handle('read-settings', async () => {
 
 ipcMain.handle('save-settings', async (event, settings) => {
   try {
-    await fsPromises.writeFile(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
+    await writeJsonAtomic(SETTINGS_FILE, settings);
     for (const win of windows) {
       if (!win.isDestroyed()) win.webContents.send('settings-updated', settings);
     }

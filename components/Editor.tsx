@@ -196,7 +196,7 @@ const EditorComponent: React.FC<EditorProps> = memo(({
         const file = items[i].getAsFile();
         if (file) {
           const buffer = await file.arrayBuffer();
-          const ipcRenderer = (window as any).require ? (window as any).require('electron').ipcRenderer : null;
+          const ipcRenderer = (window as any).ipcRenderer || ((window as any).require ? (window as any).require('electron').ipcRenderer : null);
           if (ipcRenderer) {
             try {
               // 通过IPC调用保存图片

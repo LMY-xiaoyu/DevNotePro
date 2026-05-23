@@ -26,13 +26,18 @@ import ConfirmationModal from './components/ConfirmationModal';
 import ContextMenu, { MenuItem } from './components/ContextMenu';
 import { TooltipLayer } from './components/TooltipLayer';
 // 导入类型定义
-import { Note, Settings, Toast, Folder } from './types';
+import { Note, Settings, Folder } from './types';
 // 导入图标
 import { X, FileText, GripVertical, Plus, ArrowLeft, ArrowRight, MinusCircle, XCircle } from 'lucide-react';
-
-// 本地存储键名
-const LOCAL_STORAGE_KEY = 'devnote_pro_data_v1';
-const FOLDERS_STORAGE_KEY = 'devnote_pro_folders_v1';
+import { ipcClient } from './services/ipcClient';
+import { FOLDERS_STORAGE_KEY, LOCAL_STORAGE_KEY } from './constants/storage';
+import { useConfirmation } from './hooks/useConfirmation';
+import { useFloatingNoteLoader } from './hooks/useFloatingNoteLoader';
+import { useHorizontalWheel } from './hooks/useHorizontalWheel';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useNotePersistence } from './hooks/useNotePersistence';
+import { useToast } from './hooks/useToast';
+import { createFallbackNote, createNote, createWelcomeNote } from './utils/noteFactory';
 
 /**
  * App组件 - 应用的主组件
@@ -76,8 +81,7 @@ const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   // 是否显示设置模态框
   const [showSettings, setShowSettings] = useState(false);
-  // 提示信息列表
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const { toasts, addToast, removeToast } = useToast();
   // 浮动窗口是否置顶
   const [isFloatingOnTop, setIsFloatingOnTop] = useState(false);
   
@@ -90,8 +94,7 @@ const App: React.FC = () => {
   // 标签页上下文菜单状态
   const [tabContextMenu, setTabContextMenu] = useState<{ x: number; y: number; noteId: string } | null>(null);
 
-  // 确认对话框状态
-  const [confirmation, setConfirmation] = useState<{ isOpen: boolean; title: string; content: string; isDanger?: boolean; onConfirm: () => void }>({ isOpen: false, title: '', content: '', onConfirm: () => {} });
+  const { confirmation, showConfirm, closeConfirmation } = useConfirmation();
 
   // 应用设置
   const [settings, setSettings] = useState<Settings>({
@@ -117,145 +120,20 @@ const App: React.FC = () => {
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
 
-  /**
-   * 获取Electron的ipcRenderer实例
-   * @returns ipcRenderer实例或null
-   */
-  const getIpcRenderer = () => {
-    if (typeof window !== 'undefined' && (window as any).require) {
-      try { return (window as any).require('electron').ipcRenderer; } catch (e) { return null; }
-    }
-    // 尝试使用window.ipcRenderer（如果直接暴露的话）
-    return typeof window !== 'undefined' ? (window as any).ipcRenderer || null : null;
-  };
-
-  /**
-   * 添加提示信息
-   * @param message 提示信息内容
-   * @param type 提示信息类型
-   */
-  const addToast = (message: string, type: 'success' | 'info' | 'warning' = 'info') => {
-    const id = crypto.randomUUID();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => removeToast(id), 3000);
-  };
-
-  /**
-   * 移除提示信息
-   * @param id 提示信息ID
-   */
-  const removeToast = (id: string) => setToasts(prev => prev.filter(t => t.id !== id));
-
-  /**
-   * 显示确认对话框
-   * @param title 对话框标题
-   * @param content 对话框内容
-   * @param onConfirm 确认回调函数
-   * @param isDanger 是否为危险操作
-   */
-  const showConfirm = (title: string, content: string, onConfirm: () => void, isDanger: boolean = false) => {
-    setConfirmation({ isOpen: true, title, content, onConfirm, isDanger });
-  };
-
-  /**
-   * 保存笔记到磁盘
-   * @param currentNotes 当前笔记列表
-   * @param savedNoteId 要保存的笔记ID（可选）
-   * @param silent 是否静默保存
-   */
-  const saveNotesToDisk = async (currentNotes: Note[], savedNoteId?: string, silent: boolean = false) => {
-    const ipcRenderer = getIpcRenderer();
-    let success = false;
-    let errorMsg = '';
-    
-    // 如果有指定保存的笔记ID，使用editingNotes中的临时数据
-    let noteToSave: Note | undefined;
-    if (savedNoteId) {
-      noteToSave = editingNotes.get(savedNoteId) || currentNotes.find(n => n.id === savedNoteId);
-    }
-    
-    if (ipcRenderer) {
-      if (savedNoteId && noteToSave) {
-        const result = await ipcRenderer.invoke('save-note', noteToSave);
-        if (result.success) success = true; else errorMsg = result.error;
-      } else {
-        // 如果是保存所有笔记，需要检查每个笔记是否有临时编辑数据
-        const notesToSave = currentNotes.map(note => {
-          const editingNote = editingNotes.get(note.id);
-          return editingNote || note;
-        });
-        const result = await ipcRenderer.invoke('save-notes', notesToSave);
-        if (result.success) success = true; else errorMsg = result.error;
-      }
-    } else {
-      try {
-        // 如果是保存所有笔记，需要检查每个笔记是否有临时编辑数据
-        const notesToSave = currentNotes.map(note => {
-          const editingNote = editingNotes.get(note.id);
-          return editingNote || note;
-        });
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(notesToSave));
-        success = true;
-      } catch (e) { errorMsg = 'Local Storage Full'; }
-    }
-    
-    if (success) {
-      if (!silent) addToast('已保存', 'success');
-      
-      if (savedNoteId && noteToSave) {
-        // 更新notes数组，使其包含最新的保存内容
-        setNotes(prev => prev.map(n => n.id === savedNoteId ? noteToSave! : n));
-        // 从editingNotes中移除已保存的笔记
-        setEditingNotes(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(savedNoteId);
-          return newMap;
-        });
-        // 从unsavedNoteIds中移除已保存的笔记
-        setUnsavedNoteIds(prev => { const next = new Set(prev); next.delete(savedNoteId); return next; });
-      } else {
-        // 如果是保存所有笔记，更新整个notes数组
-        const updatedNotes = currentNotes.map(note => {
-          const editingNote = editingNotes.get(note.id);
-          return editingNote || note;
-        });
-        setNotes(updatedNotes);
-        // 清空editingNotes
-        setEditingNotes(new Map());
-        // 清空unsavedNoteIds
-        setUnsavedNoteIds(new Set());
-      }
-    }
-    
-    if (!success) addToast('保存失败: ' + errorMsg, 'warning');
-  };
-
-  /**
-   * 保存文件夹到磁盘
-   * @param folders 文件夹列表
-   */
-  const saveFoldersToDisk = async (folders: Folder[]) => {
-    const ipcRenderer = getIpcRenderer();
-    if (ipcRenderer) await ipcRenderer.invoke('save-folders', folders);
-    else localStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(folders));
-  };
+  const { saveNotesToDisk, saveFoldersToDisk } = useNotePersistence({
+    notes,
+    editingNotes,
+    setNotes,
+    setEditingNotes,
+    setUnsavedNoteIds,
+    addToast,
+  });
 
   /**
    * 处理添加新笔记
    */
   const handleAddNote = useCallback(() => {
-    const newNote: Note = {
-      id: crypto.randomUUID(),
-      title: '',
-      content: '',
-      tags: [],
-      folderId: activeFolder === 'all' || activeFolder === 'archive' ? 'all' : activeFolder,
-      language: 'text',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      isArchived: false,
-      isPinned: false,
-    };
+    const newNote = createNote(activeFolder === 'all' || activeFolder === 'archive' ? 'all' : activeFolder);
     setNotes(prev => {
       const next = [newNote, ...prev];
       saveNotesToDisk(next, newNote.id, true);
@@ -283,43 +161,42 @@ const App: React.FC = () => {
     const initData = async () => {
       let loadedNotes: Note[] | null = null;
       let loadedFolders: Folder[] | null = null;
-      const ipcRenderer = getIpcRenderer();
       let savedSettings = null;
 
-      if (ipcRenderer) {
+      if (ipcClient.isAvailable()) {
         try {
-          loadedNotes = await ipcRenderer.invoke('read-notes').catch((err: any) => {
+          loadedNotes = await ipcClient.readNotes()?.catch((err: any) => {
             console.error('Failed to read notes via IPC:', err);
             return [];
           });
-          loadedFolders = await ipcRenderer.invoke('read-folders').catch((err: any) => {
+          loadedFolders = await ipcClient.readFolders()?.catch((err: any) => {
             console.error('Failed to read folders via IPC:', err);
             return [];
           });
-          savedSettings = await ipcRenderer.invoke('read-settings').catch((err: any) => {
+          savedSettings = await ipcClient.readSettings()?.catch((err: any) => {
             console.error('Failed to read settings via IPC:', err);
             return null;
           });
 
           // 订阅笔记更新事件
-          ipcRenderer.on('notes-updated', (_: any, updatedNotes: Note[]) => setNotes(updatedNotes));
+          ipcClient.on('notes-updated', (updatedNotes: Note[]) => setNotes(updatedNotes));
           // 订阅单条笔记更新事件
-          ipcRenderer.on('note-updated-single', (_: any, updatedNote: Note) => {
+          ipcClient.on('note-updated-single', (updatedNote: Note) => {
             setNotes(prev => {
               const exists = prev.find(n => n.id === updatedNote.id);
               return exists ? prev.map(n => n.id === updatedNote.id ? updatedNote : n) : [updatedNote, ...prev];
             });
           });
           // 订阅文件夹更新事件
-          ipcRenderer.on('folders-updated', (_: any, updatedFolders: Folder[]) => setCustomFolders(updatedFolders));
+          ipcClient.on('folders-updated', (updatedFolders: Folder[]) => setCustomFolders(updatedFolders));
           // 订阅设置更新事件
-          ipcRenderer.on('settings-updated', (_: any, newSettings: Settings) => {
+          ipcClient.on('settings-updated', (newSettings: Settings) => {
             if (JSON.stringify(newSettings) !== JSON.stringify(settingsRef.current)) setSettings(newSettings);
           });
           // 订阅新建笔记事件
-          ipcRenderer.on('new-note', () => { if (!isFloatingWindow) handleAddNoteRef.current(); });
+          ipcClient.on('new-note', () => { if (!isFloatingWindow) handleAddNoteRef.current(); });
           // 订阅打开设置事件
-          ipcRenderer.on('open-settings', () => { if (!isFloatingWindow) setShowSettings(true); });
+          ipcClient.on('open-settings', () => { if (!isFloatingWindow) setShowSettings(true); });
         } catch (e) { console.error(e); }
       }
 
@@ -359,7 +236,7 @@ const App: React.FC = () => {
           const isBlank = titleIsBlank && contentIsBlank && tagsIsBlank;
           if (isBlank) {
             // 如果使用IPC，从磁盘删除空白笔记
-            if (ipcRenderer && n.id) ipcRenderer.invoke('delete-note', n.id);
+            if (ipcClient.isAvailable() && n.id) ipcClient.deleteNote(n.id);
             return false;
           }
           return true;
@@ -394,42 +271,19 @@ const App: React.FC = () => {
             const noteExists = loadedNotes.some(note => note.id === floatingNoteId);
             if (!noteExists) {
               // 如果不存在，尝试单独读取该笔记
-              const ipcRenderer = getIpcRenderer();
-              if (ipcRenderer) {
-                ipcRenderer.invoke('read-note', floatingNoteId).then((note: Note | null) => {
+              if (ipcClient.isAvailable()) {
+                ipcClient.readNote(floatingNoteId)?.then((note: Note | null) => {
                   if (note) {
                     setNotes(prev => [note, ...prev]);
                   } else {
                     // 如果读取失败，创建一个新的笔记
-                    const newNote: Note = {
-                      id: floatingNoteId,
-                      title: '',
-                      content: '',
-                      tags: [],
-                      folderId: 'all',
-                      language: 'text',
-                      createdAt: Date.now(),
-                      updatedAt: Date.now(),
-                      isArchived: false,
-                      isPinned: false
-                    };
+                    const newNote = createFallbackNote(floatingNoteId);
                     setNotes(prev => [newNote, ...prev]);
                   }
                 }).catch((err: any) => {
                   console.error('Failed to read note:', err);
                   // 错误处理，创建一个新的笔记
-                  const newNote: Note = {
-                    id: floatingNoteId,
-                    title: '',
-                    content: '',
-                    tags: [],
-                    folderId: 'all',
-                    language: 'text',
-                    createdAt: Date.now(),
-                    updatedAt: Date.now(),
-                    isArchived: false,
-                    isPinned: false
-                  };
+                  const newNote = createFallbackNote(floatingNoteId);
                   setNotes(prev => [newNote, ...prev]);
                 });
               }
@@ -446,41 +300,19 @@ const App: React.FC = () => {
         } else if (!isFloatingWindow) {
           // 如果没有笔记，创建欢迎笔记
           console.log('No notes found, creating welcome note');
-          const welcome: Note = { id: 'welcome', title: '欢迎使用 DevNote Pro', content: `# 全新高性能架构\n\n- **独立文件存储**: 每个笔记现在保存为独立的 JSON 文件。\n- **图片支持**: 直接粘贴图片到编辑器。\n- **原生独立窗口**: 拖拽标签页向下，变为独立系统窗口。`, tags: ['版本更新'], folderId: 'all', language: 'markdown', createdAt: Date.now(), updatedAt: Date.now(), isArchived: false, isPinned: true };
+          const welcome = createWelcomeNote();
           setNotes([welcome]);
           setActiveNoteId(welcome.id);
           setOpenNoteIds([welcome.id]);
         } else if (isFloatingWindow && floatingNoteId) {
           // 在浮动窗口中，如果没有笔记，创建一个新的笔记
-          const newNote: Note = {
-            id: floatingNoteId,
-            title: '',
-            content: '',
-            tags: [],
-            folderId: 'all',
-            language: 'text',
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            isArchived: false,
-            isPinned: false
-          };
+          const newNote = createFallbackNote(floatingNoteId);
           setNotes([newNote]);
           setActiveNoteId(floatingNoteId);
         }
       } else if (isFloatingWindow && floatingNoteId) {
         // 如果loadedNotes为null，在浮动窗口中创建一个新的笔记
-        const newNote: Note = {
-          id: floatingNoteId,
-          title: '',
-          content: '',
-          tags: [],
-          folderId: 'all',
-          language: 'text',
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          isArchived: false,
-          isPinned: false
-        };
+        const newNote = createFallbackNote(floatingNoteId);
         setNotes([newNote]);
         setActiveNoteId(floatingNoteId);
       }
@@ -517,20 +349,16 @@ const App: React.FC = () => {
     } else {
       document.documentElement.classList.remove('dark');
     }
-    const ipc = getIpcRenderer();
-    if (ipc) {
-      ipc.send('set-always-on-top', isFloatingWindow ? isFloatingOnTop : settings.alwaysOnTop);
-    }
+    ipcClient.send('set-always-on-top', isFloatingWindow ? isFloatingOnTop : settings.alwaysOnTop);
   }, [settings.darkMode, settings.alwaysOnTop, isFloatingWindow, isFloatingOnTop]);
 
   /**
    * 保存设置到文件（仅在用户主动修改设置时）
    */
   const saveSettings = useCallback(async () => {
-    const ipc = getIpcRenderer();
-    if (ipc) {
+    if (ipcClient.isAvailable()) {
       try {
-        await ipc.invoke('save-settings', settings);
+        await ipcClient.saveSettings(settings);
         console.log('Settings saved to file:', settings);
       } catch (err) {
         console.error('Failed to save settings via IPC:', err);
@@ -543,22 +371,18 @@ const App: React.FC = () => {
     saveSettings();
   }, [saveSettings]);
 
-  /**
-   * 处理键盘快捷键
-   */
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        const currentActiveNote = editingNotes.get(activeNoteId || '') || notes.find(n => n.id === activeNoteId) || null;
-        if (currentActiveNote) {
-          saveNotesToDisk(notes, currentActiveNote.id);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [notes, activeNoteId, editingNotes]);
+  useKeyboardShortcuts({
+    onSave: () => {
+      const currentActiveNote = editingNotes.get(activeNoteId || '') || notes.find(n => n.id === activeNoteId) || null;
+      if (currentActiveNote) saveNotesToDisk(notes, currentActiveNote.id);
+    },
+    onNewNote: isFloatingWindow ? undefined : () => handleAddNoteRef.current(),
+    onFocusSearch: isFloatingWindow ? undefined : () => {
+      const searchInput = document.querySelector<HTMLInputElement>('input[data-devnote-search="true"]');
+      searchInput?.focus();
+      searchInput?.select();
+    },
+  });
 
   /**
    * 导航到文件夹
@@ -575,7 +399,7 @@ const App: React.FC = () => {
    */
   const handleToggleWindowTop = () => {
     if (isFloatingWindow) setIsFloatingOnTop(!isFloatingOnTop);
-    else { const newSettings = { ...settings, alwaysOnTop: !settings.alwaysOnTop }; setSettings(newSettings); getIpcRenderer()?.send('broadcast-settings', newSettings); }
+    else { const newSettings = { ...settings, alwaysOnTop: !settings.alwaysOnTop }; setSettings(newSettings); ipcClient.send('broadcast-settings', newSettings); }
   };
   /**
    * 打开添加文件夹模态框
@@ -635,6 +459,34 @@ const App: React.FC = () => {
       setUnsavedNoteIds(prev => new Set(prev).add(id));
     }
   };
+
+  const commitNoteUpdate = (id: string, updates: Partial<Note>, silent: boolean = true) => {
+    const baseNote = editingNotes.get(id) || notes.find(n => n.id === id);
+    if (!baseNote) return null;
+
+    const updatedNote: Note = {
+      ...baseNote,
+      ...updates,
+      updatedAt: updates.updatedAt ?? Date.now(),
+    };
+    const updatedNotes = notes.some(n => n.id === id)
+      ? notes.map(n => n.id === id ? updatedNote : n)
+      : [updatedNote, ...notes];
+
+    setNotes(updatedNotes);
+    setEditingNotes(prev => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+    setUnsavedNoteIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    saveNotesToDisk(updatedNotes, id, silent);
+    return updatedNote;
+  };
   /**
    * 处理重新排序笔记
    * @param draggedId 被拖拽的笔记ID
@@ -654,7 +506,7 @@ const App: React.FC = () => {
     showConfirm('删除笔记', '确定要彻底删除这条笔记吗？', async () => {
       const updated = notes.filter(n => n.id !== id); setNotes(updated);
       handleCloseTab(id, undefined, true); addToast('笔记已删除', 'info');
-      const ipc = getIpcRenderer(); if (ipc) await ipc.invoke('delete-note', id); else saveNotesToDisk(updated, undefined, true);
+      if (ipcClient.isAvailable()) await ipcClient.deleteNote(id); else saveNotesToDisk(updated, undefined, true);
       if (isFloatingWindow && id === floatingNoteId) window.close();
     }, true);
   };
@@ -667,8 +519,7 @@ const App: React.FC = () => {
       const updated = notes.filter(n => !selectedListIds.has(n.id)); setNotes(updated);
       const nextOpen = openNoteIds.filter(id => !selectedListIds.has(id)); setOpenNoteIds(nextOpen);
       if (activeNoteId && selectedListIds.has(activeNoteId)) setActiveNoteId(nextOpen.length > 0 ? nextOpen[nextOpen.length - 1] : null);
-      const ipc = getIpcRenderer();
-      if (ipc) { for (const id of selectedListIds) await ipc.invoke('delete-note', id); } else saveNotesToDisk(updated, undefined, true);
+      if (ipcClient.isAvailable()) { for (const id of selectedListIds) await ipcClient.deleteNote(id); } else saveNotesToDisk(updated, undefined, true);
       setSelectedListIds(new Set()); addToast(`${selectedListIds.size} 条笔记已删除`, 'info');
     }, true);
   };
@@ -726,17 +577,20 @@ const App: React.FC = () => {
    * @param e 拖拽事件
    * @param id 笔记ID
    */
-  const handleTabDragEnd = (e: React.DragEvent, id: string) => { if (e.clientY > 150) { const ipc = getIpcRenderer(); if (ipc) { const note = editingNotes.get(id) || notes.find(n => n.id === id); if (note) { const isUnsaved = unsavedNoteIds.has(id); ipc.invoke('open-note-window', { ...note, isUnsaved }); handleCloseTab(id, undefined, true); } } } };
+  const handleTabDragEnd = (e: React.DragEvent, id: string) => { if (e.clientY > 150 && ipcClient.isAvailable()) { const note = editingNotes.get(id) || notes.find(n => n.id === id); if (note) { const isUnsaved = unsavedNoteIds.has(id); ipcClient.openNoteWindow({ ...note, isUnsaved }); handleCloseTab(id, undefined, true); } } };
   /**
    * 处理置顶笔记
    * @param id 笔记ID
    */
-  const handlePinNote = (id: string) => { const n = notes.find(n => n.id === id); if (n) { const updated = { ...n, isPinned: !n.isPinned }; const updatedNotes = notes.map(note => note.id === id ? updated : note); setNotes(updatedNotes); saveNotesToDisk(updatedNotes, id, true); } };
+  const handlePinNote = (id: string) => {
+    const n = editingNotes.get(id) || notes.find(n => n.id === id);
+    if (n) commitNoteUpdate(id, { isPinned: !n.isPinned });
+  };
   /**
    * 处理打开笔记窗口
    * @param id 笔记ID
    */
-  const handleOpenWindow = (id: string) => { const ipc = getIpcRenderer(); if (ipc) { const note = editingNotes.get(id) || notes.find(n => n.id === id); if (note) { const isUnsaved = unsavedNoteIds.has(id); ipc.invoke('open-note-window', { ...note, isUnsaved }); handleCloseTab(id, undefined, true); } } };
+  const handleOpenWindow = (id: string) => { if (ipcClient.isAvailable()) { const note = editingNotes.get(id) || notes.find(n => n.id === id); if (note) { const isUnsaved = unsavedNoteIds.has(id); ipcClient.openNoteWindow({ ...note, isUnsaved }); handleCloseTab(id, undefined, true); } } };
   /**
    * 处理移动笔记请求
    * @param id 笔记ID
@@ -746,7 +600,15 @@ const App: React.FC = () => {
    * 处理确认移动笔记
    * @param tid 目标文件夹ID
    */
-  const handleConfirmMoveNote = (tid: string) => { if (moveNoteModal.noteId) { handleUpdateNote(moveNoteModal.noteId, { folderId: tid }); saveNotesToDisk(notes, moveNoteModal.noteId, true); addToast('笔记已移动', 'success'); } };
+  const handleConfirmMoveNote = (tid: string) => {
+    if (moveNoteModal.noteId) {
+      commitNoteUpdate(moveNoteModal.noteId, {
+        folderId: tid === 'archive' ? 'all' : tid,
+        isArchived: tid === 'archive',
+      });
+      addToast(tid === 'archive' ? '笔记已归档' : '笔记已移动', 'success');
+    }
+  };
   /**
    * 处理添加标签请求
    * @param id 笔记ID
@@ -756,7 +618,15 @@ const App: React.FC = () => {
    * 处理确认添加标签
    * @param tag 标签名称
    */
-  const handleConfirmAddTag = (tag: string) => { if (tagSelectModal.noteId) { const n = notes.find(n => n.id === tagSelectModal.noteId); if (n && !n.tags.includes(tag)) { handleUpdateNote(tagSelectModal.noteId, { tags: [...n.tags, tag] }); addToast(`标签 "${tag}" 已添加`, 'success'); saveNotesToDisk(notes, tagSelectModal.noteId, true); } } };
+  const handleConfirmAddTag = (tag: string) => {
+    if (tagSelectModal.noteId) {
+      const n = editingNotes.get(tagSelectModal.noteId) || notes.find(n => n.id === tagSelectModal.noteId);
+      if (n && !n.tags.includes(tag)) {
+        commitNoteUpdate(tagSelectModal.noteId, { tags: [...n.tags, tag] });
+        addToast(`标签 "${tag}" 已添加`, 'success');
+      }
+    }
+  };
   /**
    * 处理标签页上下文菜单
    * @param e 鼠标事件
@@ -778,49 +648,26 @@ const App: React.FC = () => {
    * 优先使用editingNotes中的临时数据，这样编辑器就能显示实时编辑的内容
    */
   const activeNote = editingNotes.get(activeNoteId || '') || notes.find(n => n.id === activeNoteId) || null;
+  const floatingEditingNote = editingNotes.get(floatingNoteId || '');
+  const floatingNoteFromNotes = notes.find(n => n.id === floatingNoteId);
+
+  useHorizontalWheel(tabHeaderRef, !isFloatingWindow, [openNoteIds.length]);
+  useFloatingNoteLoader({
+    enabled: isFloatingWindow,
+    noteId: floatingNoteId,
+    hasLocalNote: !!floatingEditingNote || !!floatingNoteFromNotes,
+    setNotes,
+  });
 
   /**
    * 浮动窗口渲染逻辑
    */
   if (isFloatingWindow) {
-    // 优先使用editingNotes中的临时数据，这样编辑器就能显示实时编辑的内容
-    const editingNote = editingNotes.get(floatingNoteId || '');
-    // 其次使用notes中的数据
-    const noteFromNotes = notes.find(n => n.id === floatingNoteId);
-    
-    // 如果没有找到对应的笔记，尝试单独读取该笔记
-    if (!editingNote && !noteFromNotes && floatingNoteId) {
-      const ipcRenderer = getIpcRenderer();
-      if (ipcRenderer) {
-        ipcRenderer.invoke('read-note', floatingNoteId).then((note: Note | null) => {
-          if (note) {
-            setNotes(prev => {
-              const exists = prev.some(n => n.id === note.id);
-              return exists ? prev.map(n => n.id === note.id ? note : n) : [note, ...prev];
-            });
-          }
-        }).catch((err: any) => {
-          console.error('Failed to read note:', err);
-        });
-      }
-    }
-    
     // 为浮动窗口创建一个默认笔记对象，确保即使没有找到笔记也能显示编辑器
-    const defaultNote: Note = {
-      id: floatingNoteId || crypto.randomUUID(),
-      title: '',
-      content: '',
-      tags: [],
-      folderId: 'all',
-      language: 'text',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      isArchived: false,
-      isPinned: false
-    };
+    const defaultNote = createFallbackNote(floatingNoteId || crypto.randomUUID());
     
     // 使用找到的笔记或默认笔记
-    const finalNote = editingNote || noteFromNotes || defaultNote;
+    const finalNote = floatingEditingNote || floatingNoteFromNotes || defaultNote;
     
     // 处理浮动窗口关闭
     const handleFloatingWindowClose = () => {
@@ -835,10 +682,10 @@ const App: React.FC = () => {
     
     return (
       <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-[rgb(86_100_123_/_50%)] to-[rgb(86_100_123_/_30%)] dark:from-[rgb(86_100_123_/_20%)] dark:to-[rgb(86_100_123_/_10%)] border border-zinc-200 dark:border-zinc-800`}>
-         <TitleBar title={`${finalNote.title || '独立窗口'}${unsavedNoteIds.has(finalNote.id) ? ' (未保存)' : ''}`} onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={handleFloatingWindowClose} />
+         <TitleBar title={`${finalNote.title || '独立窗口'}${unsavedNoteIds.has(finalNote.id) ? ' (未保存)' : ''}`} onMinimize={() => ipcClient.send('window-minimize')} onClose={handleFloatingWindowClose} />
          <Editor note={finalNote} onUpdateNote={handleUpdateNote} onDeleteNote={handleDeleteNote} onSave={() => saveNotesToDisk(notes, finalNote.id)} onTogglePin={handlePinNote} viewState="floating" setViewState={handleFloatingWindowClose} isWindowOnTop={isFloatingOnTop} onToggleWindowTop={handleToggleWindowTop} settings={settings} />
           <ToastContainer toasts={toasts} removeToast={removeToast} position="top-center" /><TooltipLayer />
-          <ConfirmationModal isOpen={confirmation.isOpen} title={confirmation.title} content={confirmation.content} isDanger={confirmation.isDanger} onConfirm={confirmation.onConfirm} onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))} />
+          <ConfirmationModal isOpen={confirmation.isOpen} title={confirmation.title} content={confirmation.content} isDanger={confirmation.isDanger} onConfirm={confirmation.onConfirm} onClose={closeConfirmation} />
       </div>
     );
   }
@@ -853,33 +700,9 @@ const App: React.FC = () => {
     return n.folderId === activeFolder && !n.isArchived;
   });
 
-  // 为标签页头部添加鼠标滚轮事件监听器，使用 { passive: false } 选项
-  useEffect(() => {
-    const tabHeader = tabHeaderRef.current;
-    if (!tabHeader) return;
-    
-    const handleWheel = (e: WheelEvent) => {
-      // 如果用户按住了 Shift 键，使用浏览器默认的水平滚动行为
-      if (e.shiftKey) {
-        return;
-      }
-      // 否则，使用鼠标滚轮控制水平滚动
-      e.preventDefault();
-      tabHeader.scrollBy({ left: e.deltaY, behavior: 'auto' });
-    };
-    
-    // 添加事件监听器，设置 passive: false
-    tabHeader.addEventListener('wheel', handleWheel, { passive: false });
-    
-    // 清理函数
-    return () => {
-      tabHeader.removeEventListener('wheel', handleWheel);
-    };
-  }, [openNoteIds]);
-
   return (
     <div className={`flex flex-col h-screen w-screen overflow-hidden ${settings.darkMode ? 'dark' : ''} bg-gradient-to-br from-[rgb(86_100_123_/_50%)] to-[rgb(86_100_123_/_30%)] dark:from-[rgb(86_100_123_/_20%)] dark:to-[rgb(86_100_123_/_10%)]`}>
-      <TitleBar title="DevNote Pro" onMinimize={() => getIpcRenderer()?.send('window-minimize')} onClose={() => getIpcRenderer()?.send('window-close')} />
+      <TitleBar title="DevNote Pro" onMinimize={() => ipcClient.send('window-minimize')} onClose={() => ipcClient.send('window-close')} />
       <div className={`flex flex-1 overflow-hidden p-[0.26rem] gap-[0.26rem]`}>
         {/* 侧边栏卡片 */}
         <div className="w-64 rounded-lg shadow-md overflow-hidden bg-white dark:bg-zinc-900">
@@ -917,11 +740,11 @@ const App: React.FC = () => {
         <button onClick={handleAddNote} style={{ backgroundColor: settings.accentColor }} className="fixed bottom-12 right-12 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center text-white hover:scale-110 active:scale-95 transition-all z-10 no-drag" data-tooltip="新建笔记 (Ctrl + N)"><Plus size={24} /></button>
       </div>
       <ToastContainer toasts={toasts} removeToast={removeToast} /><TooltipLayer />
-      {showSettings && <SettingsModal settings={settings} onUpdateSettings={(u) => { const next = { ...settings, ...u }; setSettings(next); getIpcRenderer()?.send('broadcast-settings', next); }} onSaveSettings={handleSaveSettings} onClose={() => setShowSettings(false)} />}
+      {showSettings && <SettingsModal settings={settings} onUpdateSettings={(u) => { const next = { ...settings, ...u }; setSettings(next); ipcClient.send('broadcast-settings', next); }} onSaveSettings={handleSaveSettings} onClose={() => setShowSettings(false)} />}
       <InputModal isOpen={folderModal.isOpen} title={folderModal.mode === 'create' ? '新建文件夹' : '重命名文件夹'} placeholder="文件夹名称..." initialValue={folderModal.initialValue} onConfirm={handleFolderModalConfirm} onClose={() => setFolderModal({ ...folderModal, isOpen: false })} />
       <FolderSelectModal isOpen={moveNoteModal.isOpen} customFolders={customFolders} onSelect={handleConfirmMoveNote} onClose={() => setMoveNoteModal({ ...moveNoteModal, isOpen: false })} />
       <TagSelectModal isOpen={tagSelectModal.isOpen} tags={Array.from(new Set(notes.flatMap(n => n.tags)))} onSelect={handleConfirmAddTag} onClose={() => setTagSelectModal({ ...tagSelectModal, isOpen: false })} />
-      <ConfirmationModal isOpen={confirmation.isOpen} title={confirmation.title} content={confirmation.content} isDanger={confirmation.isDanger} onConfirm={confirmation.onConfirm} onClose={() => setConfirmation(prev => ({ ...prev, isOpen: false }))} />
+      <ConfirmationModal isOpen={confirmation.isOpen} title={confirmation.title} content={confirmation.content} isDanger={confirmation.isDanger} onConfirm={confirmation.onConfirm} onClose={closeConfirmation} />
       {tabContextMenu && <ContextMenu x={tabContextMenu.x} y={tabContextMenu.y} items={getTabContextMenuItems()} onClose={() => setTabContextMenu(null)} />}
     </div>
   );

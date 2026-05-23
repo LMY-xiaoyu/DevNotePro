@@ -38,6 +38,7 @@
       "dist/**/*",
       "static/**/*",
       "main.js",
+      "preload.js",
       "package.json"
     ],
     "win": {
