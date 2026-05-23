@@ -1,0 +1,14 @@
+{
+  "darkMode": true,
+  "accentColor": "#3b82f6",
+  "fontSize": 14,
+  "transparency": 100,
+  "floatingPosition": {
+    "x": 100,
+    "y": 100,
+    "width": 700,
+    "height": 500
+  },
+  "alwaysOnTop": false,
+  "minimizeToTray": true
+}

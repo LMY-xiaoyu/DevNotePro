@@ -1,8 +1,9 @@
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const fsPromises = require('fs').promises;
+const process = require('process');
 
 // Track all open windows
 const windows = new Set();
@@ -24,9 +25,27 @@ const LEGACY_NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 
 const getIconPath = () => {
   const iconName = 'app.png';
-  return app.isPackaged
-    ? path.join(process.resourcesPath, 'static', iconName)
-    : path.join(__dirname, 'static', iconName);
+  
+  // 尝试获取多种可能的图标路径
+  const paths = [
+    // 打包后的标准路径
+    app.isPackaged ? path.join(process.resourcesPath, 'static', iconName) : '',
+    // 开发环境路径
+    path.join(__dirname, 'static', iconName),
+    // 打包后的替代路径（electron-builder 有时会将资源放在不同位置）
+    path.join(__dirname, '..', 'static', iconName),
+    path.join(path.dirname(process.execPath), 'static', iconName)
+  ];
+  
+  // 找到存在的路径
+  for (const path of paths) {
+    if (path && fs.existsSync(path)) {
+      return path;
+    }
+  }
+  
+  // 如果所有路径都不存在，返回空字符串
+  return '';
 };
 
 // 设置文件路径
@@ -40,6 +59,26 @@ const ensureDirs = () => {
   });
 };
 ensureDirs();
+
+// --- 防止重复启动逻辑 ---
+
+// 使用Electron的单实例锁机制
+const gotTheLock = app.requestSingleInstanceLock();
+
+// 如果获取锁失败，说明已有实例在运行
+if (!gotTheLock) {
+  // 退出新实例
+  app.quit();
+} else {
+  // 当有新实例启动时，显示主窗口
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // 显示主窗口
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
 
 const migrateLegacyNotes = async () => {
   try {
@@ -224,45 +263,61 @@ async function handleNewNoteFromTray() {
 function createTray() {
   try {
     const iconPath = getIconPath();
-    tray = new Tray(fs.existsSync(iconPath) ? iconPath : path.join(__dirname, 'main.js'));
     
-    const contextMenu = Menu.buildFromTemplate([
-      { label: '打开主面板', click: () => {
+    // 只有在图标路径存在时才创建托盘
+    if (iconPath && fs.existsSync(iconPath)) {
+      tray = new Tray(iconPath);
+      
+      const contextMenu = Menu.buildFromTemplate([
+        { label: '显示应用', click: () => {
+            if (!mainWindow) createWindow();
+            else {
+              mainWindow.show();
+              mainWindow.focus();
+            }
+        }},
+        { type: 'separator' },
+        { label: '新建笔记', click: () => { 
+            handleNewNoteFromTray();
+        }},
+        { label: '设置中心', click: () => { 
+            if (!mainWindow) createWindow();
+            mainWindow.show();
+            mainWindow.focus();
+            // Small delay ensures the window is ready and focused before triggering modal
+            setTimeout(() => {
+              mainWindow.webContents.send('open-settings'); 
+            }, 100);
+        }},
+        { type: 'separator' },
+        { label: '退出程序', click: () => { 
+            isQuitting = true; 
+            app.quit(); 
+        }}
+      ]);
+
+      tray.setContextMenu(contextMenu);
+      tray.setToolTip('DevNote Pro');
+      tray.on('double-click', () => {
           if (!mainWindow) createWindow();
           else {
             mainWindow.show();
             mainWindow.focus();
           }
-      }},
-      { type: 'separator' },
-      { label: '新建笔记 (独立窗口)', click: () => { 
-          handleNewNoteFromTray();
-      }},
-      { label: '设置中心', click: () => { 
-          if (!mainWindow) createWindow();
-          mainWindow.show();
-          mainWindow.focus();
-          // Small delay ensures the window is ready and focused before triggering modal
-          setTimeout(() => {
-            mainWindow.webContents.send('open-settings'); 
-          }, 100);
-      }},
-      { type: 'separator' },
-      { label: '退出程序', click: () => { 
-          isQuitting = true; 
-          app.quit(); 
-      }}
-    ]);
-
-    tray.setContextMenu(contextMenu);
-    tray.setToolTip('DevNote Pro');
-    tray.on('double-click', () => {
-        if (!mainWindow) createWindow();
-        else {
-          mainWindow.show();
-          mainWindow.focus();
-        }
-    });
+      });
+      
+      console.log('Tray created successfully with icon:', iconPath);
+    } else {
+      console.error('Tray creation failed: No valid icon path found');
+      
+      // 如果没有找到图标，尝试使用默认的系统托盘图标
+      try {
+        tray = new Tray(path.join(__dirname, 'static', 'app.png'));
+        console.log('Tray created with default icon');
+      } catch (e) {
+        console.error('Tray creation failed with default icon:', e);
+      }
+    }
   } catch (e) {
     console.error('Tray creation failed:', e);
   }

@@ -23,6 +23,7 @@ export const LANGUAGES: { value: Language; label: string }[] = [
 ];
 
 export const ACCENT_COLORS = [
+  { name: '浅绿色', value: '#acd88d' },
   { name: '蓝色', value: '#3b82f6' },
   { name: '紫色', value: '#a855f7' },
   { name: '绿色', value: '#22c55e' },
